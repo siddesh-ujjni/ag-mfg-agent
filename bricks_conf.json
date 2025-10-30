@@ -1,0 +1,430 @@
+{
+  "genie_space": {
+    "config": {
+      "id": "01f0b5a5d15b1c71b05d5341b18c4ae5",
+      "space_id": "01f0b5a5d15b1c71b05d5341b18c4ae5",
+      "display_name": "Closed-Loop Blend Optimization - McCain Idaho (AI-BI Genie)",
+      "description": "Genie space for mccain demo with curated questions and SQL instructions",
+      "warehouse_id": "862f1d757f0424f7",
+      "created_timestamp": 1761838423516,
+      "last_updated_timestamp": 1761844209880,
+      "table_identifiers": [
+        "brlui.brian_lui_mccain.gold_blend_hourly_quality",
+        "brlui.brian_lui_mccain.gold_blend_suggestions",
+        "brlui.brian_lui_mccain.gold_blend_hourly_kpis",
+        "brlui.brian_lui_mccain.gold_blend_costs",
+        "brlui.brian_lui_mccain.gold_downstream_penalties",
+        "brlui.brian_lui_mccain.gold_supplier_variety_contributors",
+        "brlui.brian_lui_mccain.gold_pss_mismatch_daily",
+        "brlui.brian_lui_mccain.gold_detection_sla",
+        "brlui.brian_lui_mccain.gold_policy_alignment",
+        "brlui.brian_lui_mccain.silver_hourly_blend_intake",
+        "brlui.brian_lui_mccain.silver_line_quality_events",
+        "brlui.brian_lui_mccain.silver_line_runs",
+        "brlui.brian_lui_mccain.silver_oee_equipment_events",
+        "brlui.brian_lui_mccain.silver_potato_load_quality",
+        "brlui.brian_lui_mccain.silver_scenario_inputs",
+        "brlui.brian_lui_mccain.gold_global_filters_bridge",
+        "brlui.brian_lui_mccain.gold_ref_usda_ordinal"
+      ],
+      "user_id": 6744972395736473,
+      "run_as_type": "VIEWER",
+      "folder_node_internal_name": "tree/2894186667706880"
+    },
+    "sample_questions": [],
+    "benchmarks": [],
+    "instructions": [
+      {
+        "title": "Notes",
+        "content": "This Genie space enables closed-loop blend optimization and quality-cost monitoring for McCain Idaho, with emphasis on line-hour blend quality vs SKU-specific PSS minima and cost-quality tradeoffs. Use gold tables for executive KPIs (hourly compliance, adoption, cost per mt, downstream penalties) and silver tables for detailed line events and intake investigations.\n\nCore business logic and context:\n- Hourly blend quality (dry solids, defect points, average length, modal USDA color) is computed in gold_blend_hourly_quality from silver_hourly_blend_intake joined with PSS thresholds; alert flags mark tolerance band proximity (dry solids within 0.3pp of min; defects within 0.2 of max).\n- Suggested fractions from gold_blend_suggestions minimize raw potato cost while meeting SKU minima and blend rules; adoption_flag indicates whether operators followed suggestions within +/-3 percentage points per source.\n- Compliance and adoption KPIs are aggregated daily in gold_blend_hourly_kpis; raw cost per mt joins from gold_blend_costs for tradeoff analysis.\n- Supplier reliability and variance are tracked in gold_supplier_variety_contributors to guide blend priority and procurement adjustments by supplier, variety, and region.\n- Detection SLA (gold_detection_sla) monitors whether under/over-quality deliveries were flagged within 24 hours; cost attribution (gold_quality_cost_attribution) rolls up oil, yield, labor/rework, and performance derate costs.\n- Downstream penalties (gold_downstream_penalties) summarize weekly disposition costs (repack, lower price, reblend, blocked stock, re-sample, donation, dump).\n\nData quality and modeling notes:\n- PSS thresholds vary by SKU; ensure filters align to plant_id/line_id/sku_id casing across tables (some tables use lowercase for idaho/l2 and others uppercase IDAHO/L2). Normalize to consistent case in queries.\n- Hour buckets are timestamped; use appropriate date/time filters when correlating events and suggestions.\n- Adoption_flag tolerance is +/-3 pp per source; infeasible_flag is currently false for all rows, indicating feasible solutions under modeled constraints.\n- silver_line_quality_events provides high-frequency signals for root cause; silver_potato_load_quality supports intake-level variance and supplier/variety slicing.\n\nBest practices:\n- Start with gold_blend_hourly_quality for alert-driven questions and gold_blend_suggestions for action tracking.\n- For the mid-September Idaho L2 anomaly, use joins between gold_quality_cost_attribution and gold_detection_sla, and trend downstream penalties via gold_downstream_penalties.\n- Apply global filters (date range, plant_id, line_id, sku_id, source_id, variety) consistently; gold_global_filters_bridge can help surface filter values across datasets.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Identify hourly alerts and tolerance band breaches",
+        "content": "-- Dry solids within 0.3pp of min or defects within 0.2 of max\nSELECT plant_id, line_id, sku_id, hour_bucket,\n       dry_solids_pct_blend, sku_min_dry_solids_pct,\n       defect_points_blend,\n       alert_dry_band_flag, alert_defect_band_flag, compliance_flag\nFROM brlui.brian_lui_mccain.gold_blend_hourly_quality\nWHERE (alert_dry_band_flag = TRUE OR alert_defect_band_flag = TRUE)\nORDER BY hour_bucket DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Suggested vs actual fractions and adoption (+/-3pp)",
+        "content": "-- Compare suggested and actual fractions per source by hour\nSELECT plant_id, line_id, sku_id, hour_bucket, source_id_list,\n       actual_fractions, suggested_fractions, expected_cost_per_kg_usd,\n       compliance_flag, adoption_flag\nFROM brlui.brian_lui_mccain.gold_blend_suggestions\nORDER BY hour_bucket DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Daily compliance and adoption KPIs with cost join",
+        "content": "-- Join compliance and cost to analyze tradeoffs\nSELECT k.date, k.plant_id, k.line_id, k.sku_id,\n       k.hours_total, k.hours_in_spec, k.compliance_rate_pct, k.adoption_rate_pct,\n       c.avg_cost_per_mt_usd\nFROM brlui.brian_lui_mccain.gold_blend_hourly_kpis k\nLEFT JOIN brlui.brian_lui_mccain.gold_blend_costs c\n  ON k.date = c.date AND k.plant_id = c.plant_id AND k.line_id = c.line_id AND k.sku_id = c.sku_id\nORDER BY k.date DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier reliability and mismatch attribution",
+        "content": "-- Weekly supplier/variety/region KPIs\nSELECT week_start, plant_id, line_id, sku_id, supplier_id, variety, supplier_region,\n       loads, volume_kg, mean_dry_solids_pct, mean_defect_points,\n       mismatch_rate, mismatch_loads\nFROM brlui.brian_lui_mccain.gold_supplier_variety_contributors\nWHERE plant_id = 'idaho' AND line_id = 'l2'\nORDER BY week_start DESC, mismatch_rate DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Event window cost attribution and detection SLA",
+        "content": "-- Summarize costs and detection rates around mid-September\nSELECT q.date, q.plant_id, q.line_id, q.sku_id,\n       q.total_cost_overrun_usd,\n       d.detection_within_24h_rate\nFROM brlui.brian_lui_mccain.gold_quality_cost_attribution q\nLEFT JOIN brlui.brian_lui_mccain.gold_detection_sla d\n  ON q.plant_id = d.plant_id AND q.line_id = d.line_id AND q.date = d.date\nWHERE q.plant_id = 'IDAHO' AND q.line_id = 'L2' AND q.date BETWEEN DATE('2025-09-08') AND DATE('2025-09-15')\nORDER BY q.date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space enables closed-loop blend optimization and monitoring for McCain Idaho and other plants. It focuses on hourly blended raw potato quality at line entry versus SKU-specific PSS minima/maxima, proactive alerts, cost-quality tradeoffs, optimizer suggestions, supplier reliability, and downstream penalties.\n\nData model notes:\n- Gold tables provide curated metrics for hourly quality vs PSS (gold_blend_hourly_quality), suggested fractions and adoption (gold_blend_suggestions), daily compliance/adoption KPIs (gold_blend_hourly_kpis), blended raw cost per mt (gold_blend_costs), downstream penalties (gold_downstream_penalties), detection SLA (gold_detection_sla), supplier reliability contributors (gold_supplier_variety_contributors), and daily mismatch rollups (gold_pss_mismatch_daily). Use these for KPI answers and executive views.\n- Silver tables capture detailed events and inputs: line-level quality events (silver_line_quality_events), sessionized runs (silver_line_runs), hourly blend intake with sources/fractions and cost proxy (silver_hourly_blend_intake), per-load intake quality (silver_potato_load_quality), OEE/equipment events (silver_oee_equipment_events), and schedule/policy changes (silver_line_schedule_and_changes). Use silver for root cause and slicing by source/bin/variety.\n\nBusiness logic highlights:\n- Compliance checks compare blended attributes to PSS: dry_solids_pct_blend >= sku_min_dry_solids_pct and defect_points_blend <= max thresholds. Alert band flags indicate approaching tolerance (e.g., dry solids within ~0.3 pp of minimum; defects within ~0.2 of maximum).\n- Optimizer suggestions minimize potato_cost_per_kg subject to meeting SKU minima and allowed varieties/blend constraints. Adoption_flag = TRUE when actual fractions are within +/-3 pp of suggestion per source.\n- Cost analysis pairs gold_blend_hourly_quality/potato_cost_per_kg_blend with gold_blend_suggestions.expected_cost_per_kg_usd to estimate savings from just-meeting specs versus over-quality blending.\n- Supplier performance adjustment uses gold_supplier_variety_contributors to identify high-variance suppliers/varieties/regions (e.g., SE Norkotah during wet periods), guiding blend priority and procurement tweaks.\n- Detection SLA tracks share of loads flagged within 24h; relate to policy changes via gold_policy_alignment.\n- Downstream penalties quantify repack, lower_price, reblend, blocked_stock, re_sample, donation, dump; monitor declines with increased optimizer adoption.\n\nData quality considerations:\n- Some reference fields (max defect thresholds by SKU) are constrained in upstream PSS; ensure correct SKU filters.\n- Detection SLA table mixes plant_id/line_id casing; filter using both uppercase/lowercase.\n- Cost proxies are blended averages (per kg) and may vary by source unit cost precision; use relative deltas for savings.\n\nRecommended usage:\n- Start with gold_blend_hourly_quality to see alert windows, then join to gold_blend_suggestions for actions and cost impacts.\n- Use gold_blend_hourly_kpis for daily trend KPIs and adoption tracking.\n- Drill into silver_hourly_blend_intake and silver_line_quality_events for source-level RCA when compliance dips.\n- For supplier guidance, pivot gold_supplier_variety_contributors by supplier/variety/region and rank by mismatch_rate and variance.\n- Tie detection SLA and penalties together to narrate event and recovery.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Hourly blend quality vs PSS thresholds and alert bands",
+        "content": "-- Identify hours approaching/breaching tolerance for dry solids and defects\nSELECT plant_id, line_id, sku_id, hour_bucket,\n       dry_solids_pct_blend, defect_points_blend,\n       sku_min_dry_solids_pct, compliance_flag,\n       alert_dry_band_flag, alert_defect_band_flag\nFROM brlui.brian_lui_mccain.gold_blend_hourly_quality\nWHERE plant_id = 'idaho'\n  AND line_id = 'l2'\n  AND sku_id = 'sku-ff-38-skinon'\n  AND hour_bucket BETWEEN TIMESTAMP('2025-09-08 00:00:00') AND TIMESTAMP('2025-09-15 23:59:59')\nORDER BY hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Daily KPIs: compliance and adoption",
+        "content": "-- Daily hourly compliance and adoption by plant/line/SKU\nSELECT date, plant_id, line_id, sku_id,\n       hours_total, hours_in_spec,\n       compliance_rate_pct, adoption_rate_pct\nFROM brlui.brian_lui_mccain.gold_blend_hourly_kpis\nWHERE plant_id = 'idaho' AND line_id = 'l2' AND sku_id = 'sku-ff-38-skinon'\n  AND date BETWEEN TIMESTAMP('2025-09-01 00:00:00') AND TIMESTAMP('2025-09-30 23:59:59')\nORDER BY date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Suggested vs actual fractions and expected cost delta",
+        "content": "-- Compare suggested fractions to actual and estimate cost deltas\nSELECT s.hour_bucket, s.plant_id, s.line_id, s.sku_id,\n       s.source_id_list, s.actual_fractions, s.suggested_fractions,\n       s.expected_cost_per_kg_usd,\n       q.potato_cost_per_kg_blend AS actual_cost_per_kg_usd,\n       (q.potato_cost_per_kg_blend - s.expected_cost_per_kg_usd) AS delta_cost_per_kg_usd,\n       s.compliance_flag, s.adoption_flag\nFROM brlui.brian_lui_mccain.gold_blend_suggestions s\nJOIN brlui.brian_lui_mccain.gold_blend_hourly_quality q\n  ON s.plant_id = q.plant_id AND s.line_id = q.line_id AND s.sku_id = q.sku_id AND s.hour_bucket = q.hour_bucket\nWHERE s.plant_id = 'idaho' AND s.line_id = 'l2' AND s.sku_id = 'sku-ff-38-skinon'\n  AND s.hour_bucket BETWEEN TIMESTAMP('2025-09-08 00:00:00') AND TIMESTAMP('2025-09-15 23:59:59')\nORDER BY s.hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier/variety reliability contributors",
+        "content": "-- Weekly supplier/variety/region KPIs to identify blending priority adjustments\nSELECT week_start, plant_id, line_id, sku_id,\n       supplier_id, variety, supplier_region,\n       loads, volume_kg, mean_dry_solids_pct, mean_defect_points,\n       mismatch_rate, mismatch_loads\nFROM brlui.brian_lui_mccain.gold_supplier_variety_contributors\nWHERE plant_id = 'idaho' AND line_id = 'l2'\n  AND sku_id = 'sku-ff-38-skinon'\n  AND week_start BETWEEN TIMESTAMP('2025-08-18 00:00:00') AND TIMESTAMP('2025-10-13 23:59:59')\nORDER BY week_start, mismatch_rate DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Downstream penalties by type (stacked weekly view)",
+        "content": "-- Disposition penalty costs by type around the event window\nSELECT week_start, plant_id, line_id, sku_id,\n       disposition_type, SUM(penalties_usd) AS penalties_usd\nFROM brlui.brian_lui_mccain.gold_downstream_penalties\nWHERE plant_id = 'idaho' AND line_id = 'l2' AND sku_id = 'sku-ff-38-skinon'\n  AND week_start BETWEEN TIMESTAMP('2025-08-25 00:00:00') AND TIMESTAMP('2025-10-13 23:59:59')\nGROUP BY week_start, plant_id, line_id, sku_id, disposition_type\nORDER BY week_start;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Detection SLA and policy alignment trend",
+        "content": "-- Daily detection within 24h and policy alignment markers\nSELECT d.date, d.plant_id, d.line_id, d.detection_within_24h_rate,\n       p.policy_type, p.region_note, p.alignment_marker\nFROM brlui.brian_lui_mccain.gold_detection_sla d\nLEFT JOIN brlui.brian_lui_mccain.gold_policy_alignment p\n  ON d.date = p.date AND d.plant_id = p.plant_id AND d.line_id = p.line_id\nWHERE d.plant_id IN ('IDAHO','idaho') AND d.line_id IN ('L2','l2')\n  AND d.date BETWEEN DATE('2025-09-01') AND DATE('2025-09-30')\nORDER BY d.date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space supports closed-loop blend optimization, alerting, and cost-quality tradeoffs for McCain Foods potato processing, centered on Idaho Line 2 (skin-on 3/8 fries) and comparable lines. Use gold tables for executive KPIs (hourly compliance, raw cost per MT, adoption, penalties) and silver tables for root-cause detail and operational tracing.\n\nCore business logic and context:\n- PSS thresholds define compliance; focus attributes: dry_solids_pct (min), defect_points (max), and color distributions. Alert bands fire when dry solids are within ~0.3 pp above min or defects within ~0.2 of max. Use gold_blend_hourly_quality for per-hour flags and compliance.\n- Optimizer provides suggested source fractions per hour that just meet PSS at minimal potato cost. Adoption_flag is true when actual is within +/-3 pp per source. Use gold_blend_suggestions to compare actual vs suggested and estimate savings.\n- Cost-quality tradeoff: Track avg_cost_per_mt_usd from gold_blend_costs and compliance_rate_pct from gold_blend_hourly_kpis to highlight overspend from over-quality blends vs risk of misses.\n- Downstream penalties capture repack, lower_price, reblend, blocked_stock, re_sample, donation, dump costs weekly in gold_downstream_penalties. Event narrative expects a penalty spike in mid-September at Idaho L2, with reductions as adoption increases.\n- Detection SLA: gold_detection_sla and gold_pss_mismatch_daily provide detection_within_24h_rate and under_quality_share_pct patterns; look for dips around 2025-09-09 and recovery post 2025-09-11.\n- Supplier reliability: gold_supplier_variety_contributors highlights variance by supplier/variety/region; use to recommend blending priority and procurement guidance.\n\nData model pointers:\n- For time-series joins, align on plant_id, line_id, sku_id, and daily date (timestamp). Hourly analyses use hour_bucket.\n- Arrays in blend tables (sources, fractions, source_id_list) represent up to 2-4 concurrent sources per hour. Adoption is calculated against suggested_fractions within +/-3 percentage points.\n- silver_hourly_blend_intake gives the detailed, approximated per-hour source/fraction/cost and blended attributes for deep dives.\n- silver_line_quality_events and silver_line_runs enable tracing of in-line quality signals, runs, and OEE context for time-to-correct and performance derates.\n\nData quality considerations:\n- gold_quality_cost_attribution currently holds placeholders for some derived components in this demo; rely on downstream_penalties and blend_costs for financial totals in KPI views.\n- Policy alignment tables provide context notes and are sparsely populated; use for qualitative RCA.\n\nSuggested filters:\n- Date range (focus: 2025-09-08..2025-09-15), plant_id, line_id, sku_id, source_id, variety.\n- For executive summary, filter plant_id='idaho', line_id='l2', sku_id='sku-ff-38-skinon'.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Hourly blend quality vs SKU minimums (dry solids and defects)",
+        "content": "-- Identify hours breaching or near tolerance bands for Idaho L2 skin-on 3/8 fries\nSELECT plant_id, line_id, sku_id, hour_bucket,\n       dry_solids_pct_blend, defect_points_blend,\n       sku_min_dry_solids_pct,\n       alert_dry_band_flag, alert_defect_band_flag,\n       compliance_flag\nFROM brlui.brian_lui_mccain.gold_blend_hourly_quality\nWHERE plant_id = 'idaho'\n  AND line_id = 'l2'\n  AND sku_id = 'sku-ff-38-skinon'\n  AND hour_bucket BETWEEN TIMESTAMP('2025-09-08 00:00:00') AND TIMESTAMP('2025-09-15 23:59:59')\nORDER BY hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Suggested vs actual fractions and adoption (+/-3pp)",
+        "content": "-- Compare suggested vs actual fractions and show non-adopted hours\nSELECT plant_id, line_id, sku_id, hour_bucket,\n       source_id_list, actual_fractions, suggested_fractions,\n       expected_cost_per_kg_usd, compliance_flag, adoption_flag\nFROM brlui.brian_lui_mccain.gold_blend_suggestions\nWHERE plant_id = 'idaho'\n  AND line_id = 'l2'\n  AND sku_id = 'sku-ff-38-skinon'\n  AND hour_bucket BETWEEN TIMESTAMP('2025-09-08 00:00:00') AND TIMESTAMP('2025-09-15 23:59:59')\nORDER BY hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Daily cost vs compliance trend",
+        "content": "-- Join cost and compliance to see trade-off\nSELECT k.date::date AS date,\n       k.plant_id, k.line_id, k.sku_id,\n       k.compliance_rate_pct,\n       c.avg_cost_per_mt_usd\nFROM brlui.brian_lui_mccain.gold_blend_hourly_kpis k\nJOIN brlui.brian_lui_mccain.gold_blend_costs c\n  ON k.date = c.date AND k.plant_id = c.plant_id AND k.line_id = c.line_id AND k.sku_id = c.sku_id\nWHERE k.plant_id = 'idaho' AND k.line_id = 'l2' AND k.sku_id = 'sku-ff-38-skinon'\nORDER BY date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Downstream penalties by type (weekly)",
+        "content": "-- Stack of penalty costs by disposition type for the event week\nSELECT week_start, plant_id, line_id, sku_id, disposition_type, penalties_usd\nFROM brlui.brian_lui_mccain.gold_downstream_penalties\nWHERE plant_id = 'idaho' AND line_id = 'l2' AND sku_id = 'sku-ff-38-skinon'\n  AND week_start BETWEEN TIMESTAMP('2025-09-08') AND TIMESTAMP('2025-09-15')\nORDER BY week_start, disposition_type;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier/variety reliability (8-week rollup view)",
+        "content": "-- Identify suppliers/varieties/regions with higher mismatch rates\nSELECT week_start, plant_id, line_id, sku_id, supplier_id, variety, supplier_region,\n       loads, volume_kg, mean_dry_solids_pct, mean_defect_points, mismatch_rate, mismatch_loads\nFROM brlui.brian_lui_mccain.gold_supplier_variety_contributors\nWHERE plant_id = 'idaho' AND line_id = 'l2' AND sku_id = 'sku-ff-38-skinon'\n  AND week_start BETWEEN DATE_TRUNC('week', DATE('2025-09-08')) - INTERVAL 7 WEEKS\n                      AND DATE_TRUNC('week', DATE('2025-09-15'))\nORDER BY week_start, mismatch_rate DESC, loads DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space enables closed-loop blend optimization and monitoring for McCain. Use gold tables for executive KPIs and optimizer guidance; use silver tables for detailed root-cause and operational traceability.\n\nCore concepts and business logic:\n- Hourly blends are computed in silver_hourly_blend_intake with arrays of sources and fractions; gold_blend_hourly_quality compares hourly blended attributes against SKU-specific PSS minima/maxima and sets alert bands (dry solids within 0.3 pp of min; defect points within 0.2 of max).\n- Optimizer outputs in gold_blend_suggestions minimize potato cost per kg while meeting PSS and blend/variety constraints; adoption_flag indicates the hour followed suggested fractions within +/-3 percentage points per source.\n- Daily KPIs in gold_blend_hourly_kpis aggregate hourly compliance and adoption; gold_blend_costs provides average raw potato cost per mt for cost-quality tradeoff charts.\n- Downstream penalties are tracked weekly in gold_downstream_penalties by disposition type (repack, lower_price, reblend, blocked_stock, re_sample, donation, dump).\n- Supplier reliability and variance are in gold_supplier_variety_contributors to guide blending priority and procurement adjustments.\n- Detection SLA (24h) is captured in gold_detection_sla and daily mismatch context in gold_pss_mismatch_daily; line runs and OEE events in silver_line_runs and silver_oee_equipment_events provide context on speed derates, oil uptake, and equipment-related quality impacts.\n\nData quality and usage notes:\n- Prefer gold tables for speed and consistency; fall back to silver for deep-dive by hour/run/load. Some daily cost attribution placeholders may be zero-padded; rely on gold_blend_costs and penalties tables for financials in this demo.\n- Use consistent plant_id/line_id casing as stored (e.g., 'idaho','l2'); date vs timestamp joins should match types exactly.\n- Event window of interest: 2025-09-08..2025-09-15 at Idaho Line 2 (skin-on 3/8 fries) shows increased below-minimum hours, higher defects, and cost penalties; the optimizer\u2019s recommended fractions during 2025-09-10 08:00..18:00 tend toward SE Norkotah 48-55%, NW Burbank 25-30%, Shepody 15-22% to meet spec at minimal cost.\n- Escalation and policy changes are recorded in silver_line_schedule_and_changes and gold_policy_alignment for narrative alignment.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Hourly Blend Quality vs PSS and Alert Bands",
+        "content": "-- Identify hours approaching/breaching PSS thresholds with alert flags\nSELECT q.plant_id, q.line_id, q.sku_id, q.hour_bucket,\n       q.dry_solids_pct_blend, q.sku_min_dry_solids_pct,\n       q.defect_points_blend,\n       q.compliance_flag,\n       q.alert_dry_band_flag, q.alert_defect_band_flag,\n       q.sources, q.fractions,\n       q.potato_cost_per_kg_blend\nFROM brlui.brian_lui_mccain.gold_blend_hourly_quality q\nWHERE q.plant_id = 'idaho' AND q.line_id = 'l2'\n  AND q.hour_bucket BETWEEN TIMESTAMP('2025-09-01') AND TIMESTAMP('2025-09-30')\nORDER BY q.hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Suggested vs Actual Fractions and Adoption",
+        "content": "-- Compare optimizer suggestions to actual and flag adoption (+/-3pp per source)\nSELECT s.plant_id, s.line_id, s.sku_id, s.hour_bucket,\n       s.source_id_list, s.actual_fractions, s.suggested_fractions,\n       s.expected_cost_per_kg_usd, s.compliance_flag, s.adoption_flag\nFROM brlui.brian_lui_mccain.gold_blend_suggestions s\nWHERE s.plant_id = 'idaho' AND s.line_id = 'l2'\n  AND s.hour_bucket BETWEEN TIMESTAMP('2025-09-08') AND TIMESTAMP('2025-09-15')\nORDER BY s.hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Raw Potato Cost vs Compliance (Daily)",
+        "content": "-- Join daily KPIs with cost to visualize cost-quality tradeoff\nSELECT k.date, k.plant_id, k.line_id, k.sku_id,\n       k.compliance_rate_pct, k.adoption_rate_pct,\n       c.avg_cost_per_mt_usd\nFROM brlui.brian_lui_mccain.gold_blend_hourly_kpis k\nJOIN brlui.brian_lui_mccain.gold_blend_costs c\n  ON k.date = c.date AND k.plant_id = c.plant_id AND k.line_id = c.line_id AND k.sku_id = c.sku_id\nWHERE k.plant_id = 'idaho' AND k.line_id = 'l2'\n  AND k.date BETWEEN TIMESTAMP('2025-09-01') AND TIMESTAMP('2025-09-30')\nORDER BY k.date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Downstream Penalties by Disposition Type (Weekly)",
+        "content": "-- Stack penalties to show surge during event window\nSELECT week_start, plant_id, line_id, sku_id, disposition_type, SUM(penalties_usd) AS penalties_usd\nFROM brlui.brian_lui_mccain.gold_downstream_penalties\nWHERE plant_id = 'idaho' AND line_id = 'l2'\n  AND week_start BETWEEN TIMESTAMP('2025-08-25') AND TIMESTAMP('2025-09-29')\nGROUP BY week_start, plant_id, line_id, sku_id, disposition_type\nORDER BY week_start, disposition_type;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier/Variety Reliability Contributors (8-week rollup)",
+        "content": "-- Rank suppliers/varieties by mismatch rate and volume contribution\nSELECT week_start, plant_id, line_id, sku_id, supplier_id, variety, supplier_region,\n       loads, volume_kg, mean_dry_solids_pct, mean_defect_points, mismatch_rate, mismatch_loads\nFROM brlui.brian_lui_mccain.gold_supplier_variety_contributors\nWHERE plant_id = 'idaho' AND line_id = 'l2'\n  AND week_start BETWEEN TIMESTAMP('2025-07-21') AND TIMESTAMP('2025-09-15')\nORDER BY week_start, mismatch_rate DESC, volume_kg DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space enables closed-loop blend optimization for McCain Idaho and other plants. Use it to monitor hourly blend quality vs SKU PSS, trigger alert-band actions, and compare actual vs optimizer-suggested fractions to minimize raw potato cost while maintaining compliance.\n\nData model highlights:\n- Hourly blend and alerts: gold_blend_hourly_quality provides dry_solids_pct_blend, defect_points_blend, sku_min_dry_solids_pct, alert flags (dry solids within ~0.3pp of min; defects within ~0.2 of max), compliance_flag, and arrays of sources/fractions.\n- Suggestions and adoption: gold_blend_suggestions contains per-hour source_id_list, actual_fractions vs suggested_fractions, expected_cost_per_kg_usd, compliance_flag for suggested plan, and adoption_flag (+/-3pp tolerance). Use this for closed-loop action tracking and savings.\n- Daily KPIs and costs: gold_blend_hourly_kpis and gold_blend_costs support compliance rate and average raw cost per MT by day to visualize cost-quality tradeoffs.\n- Supplier reliability: gold_supplier_variety_contributors aggregates 7-day KPIs by supplier/variety/region to guide blending priority and procurement adjustments during weather events.\n- Downstream penalties: gold_downstream_penalties summarizes weekly disposition costs (repack, lower_price, reblend, blocked_stock, re_sample, donation, dump) to quantify business impact of misses.\n- Detection SLA and policy alignment: gold_detection_sla and gold_pss_mismatch_daily show detection_within_24h rates and under-quality share. gold_policy_alignment contains dated notes to align weather/policy inflections with SLA recovery.\n- Detail drill-downs: silver_hourly_blend_intake and silver_line_quality_events provide source arrays, varieties, fractions, weight, and high-frequency quality to validate optimizer recommendations.\n\nBusiness logic:\n- Optimizer aim: just meet SKU minima at minimal raw potato cost subject to variety whitelist and per-source fraction constraints; adoption_flag indicates whether suggested plan was followed within +/-3 percentage points per source.\n- Alert policy: surface hours with alert_dry_band_flag or alert_defect_band_flag for proactive actions (fraction shifts, reroute, slow-down). Escalate per policy when repeated.\n- Over-quality detection: hours well above minima imply cost-saving potential by shifting to lower-cost sources while maintaining compliance.\n\nData quality notes:\n- Some cost proxies are averaged at hourly/daily grain; use silver layers for precise per-hour source/weight context.\n- Detection SLA daily table may show sparse or binary values; prefer gold_pss_mismatch_daily for consistent 95% baseline and event dips.\n\nFiltering tips:\n- Use global filters (date range, plant_id, line_id, sku_id, source_id, variety). Event window: 2025-09-08..2025-09-15 at Idaho L2 shows alert spikes, mixed quality, and penalties.\n- To preview operator actions, sort suggested vs actual by adoption_flag = false and expected_cost_per_kg_usd asc to prioritize wins.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Identify alert-band hours and breaches by line/SKU",
+        "content": "-- Dry solids within 0.3pp of min or defects within 0.2 of max\nSELECT plant_id, line_id, sku_id, hour_bucket,\n       dry_solids_pct_blend, sku_min_dry_solids_pct,\n       defect_points_blend,\n       alert_dry_band_flag, alert_defect_band_flag,\n       compliance_flag\nFROM brlui.brian_lui_mccain.gold_blend_hourly_quality\nWHERE plant_id = 'idaho' AND line_id = 'l2' AND sku_id = 'sku-ff-38-skinon'\n  AND (alert_dry_band_flag = true OR alert_defect_band_flag = true)\nORDER BY hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Suggested vs actual fractions with adoption and expected cost",
+        "content": "-- Operator action tracking by hour\nSELECT g.plant_id, g.line_id, g.sku_id, g.hour_bucket,\n       g.source_id_list, g.actual_fractions, g.suggested_fractions,\n       g.expected_cost_per_kg_usd,\n       g.compliance_flag AS suggested_in_spec,\n       g.adoption_flag\nFROM brlui.brian_lui_mccain.gold_blend_suggestions g\nWHERE g.plant_id = 'idaho' AND g.line_id = 'l2' AND g.sku_id = 'sku-ff-38-skinon'\nORDER BY g.hour_bucket;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Daily raw potato cost vs compliance trend",
+        "content": "-- Join KPI compliance to cost per MT\nSELECT k.date::date AS date,\n       k.plant_id, k.line_id, k.sku_id,\n       k.compliance_rate_pct,\n       c.avg_cost_per_mt_usd\nFROM brlui.brian_lui_mccain.gold_blend_hourly_kpis k\nJOIN brlui.brian_lui_mccain.gold_blend_costs c\n  ON k.date = c.date AND k.plant_id = c.plant_id AND k.line_id = c.line_id AND k.sku_id = c.sku_id\nWHERE k.plant_id = 'idaho' AND k.line_id IN ('l2')\nORDER BY date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier/variety contributors and guidance",
+        "content": "-- Reliability view to inform blending priority\nSELECT week_start, plant_id, line_id, sku_id,\n       supplier_id, variety, supplier_region,\n       loads, volume_kg,\n       mean_dry_solids_pct, mean_defect_points,\n       mismatch_rate, mismatch_loads\nFROM brlui.brian_lui_mccain.gold_supplier_variety_contributors\nWHERE plant_id = 'idaho'\nORDER BY week_start DESC, mismatch_rate DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Downstream penalties by disposition type (weekly)",
+        "content": "-- Penalty surge and mix\nSELECT week_start, plant_id, line_id, sku_id,\n       disposition_type, penalties_usd\nFROM brlui.brian_lui_mccain.gold_downstream_penalties\nWHERE plant_id = 'idaho' AND line_id = 'l2'\nORDER BY week_start, disposition_type;",
+        "instruction_type": "SQL_INSTRUCTION"
+      }
+    ]
+  },
+  "knowledge_assistant": {
+    "config": {
+      "knowledge_assistant": {
+        "tile": {
+          "tile_id": "0d4d18d0-6f18-42db-98bd-562ab656a925",
+          "name": "DBGEN_McCain_Blend_Optimization_Assistant",
+          "tile_type": "KA",
+          "mlflow_experiment_id": "2894186667717124",
+          "creation_timestamp_ms": 1761843521038,
+          "last_updated_timestamp_ms": 1761844734671,
+          "serving_endpoint_name": "ka-0d4d18d0-endpoint",
+          "creator": "brian.lui@databricks.com",
+          "creator_display_name": "Brian Lui",
+          "description": "Assistant for McCain Foods blend optimization and quality compliance. It leverages indexed equipment manuals and OEE documentation to answer questions about how equipment conditions affect line quality, throughput, and corrective actions. Supports closed-loop recommendations for multi-source potato blending, comparing hourly blend attributes to SKU-specific PSS, and suggesting cost-minimizing fraction adjustments while maintaining specs.",
+          "instructions": "Be concise, data-driven, and operationally oriented. Use the indexed equipment manuals, OEE docs, and troubleshooting guides to tie equipment conditions (blade sharpness, fryer oil temp, freezer defrost, fault codes like eqp-cutr-bld-021, oil-temp-alm-118, frzr-def-045) to quality attributes (avg_length_mm, defect_points, usda_color) and throughput (speed_mtph). When asked for blend guidance, prioritize just-meeting SKU PSS targets at minimal raw potato cost; explain cost-quality tradeoffs and downstream dispositions (repack, lower price sale, reblend, blocked stock, re-sample, donation, dump). Provide step-by-step checks, recommended parameter ranges, and OEE reason code mappings (qlt-low-dry-solids, eqp-blade-dull, proc-oil-temp). Maintain professional tone; call out assumptions; suggest proactive fraction shifts and routing to prevent misses while keeping detection within 24h.",
+          "evaluation_run_exists": false,
+          "acl_enabled": true
+        },
+        "knowledge_sources": [
+          {
+            "files_source": {
+              "name": "equipment_manuals_and_oee_docs",
+              "description": "",
+              "files": {
+                "path": "/Volumes/brlui/brian_lui_mccain/raw_data/pdf/equipment_manuals_and_oee_docs"
+              }
+            },
+            "state": "KNOWLEDGE_SOURCE_STATE_UPDATED",
+            "last_successful_update_timestamp_ms": 1761843521038,
+            "latest_update_timestamp_ms": 1761843521038,
+            "knowledge_source_id": "c53f3ad8-666e-4107-add2-ddc722d12055",
+            "indexed_row_count": 61,
+            "file_source_index_info": {
+              "summary": {
+                "total_files": 8,
+                "success_files": 8,
+                "skipped_files": 0,
+                "failed_files": 0,
+                "parsed_files": 8
+              },
+              "error": "",
+              "files_by_type": {
+                "pdf": 8
+              }
+            }
+          }
+        ],
+        "status": {
+          "endpoint_status": "ONLINE"
+        }
+      }
+    },
+    "knowledge_sources": [
+      {
+        "files_source": {
+          "name": "equipment_manuals_and_oee_docs",
+          "description": "",
+          "files": {
+            "path": "/Volumes/brlui/brian_lui_mccain/raw_data/pdf/equipment_manuals_and_oee_docs"
+          },
+          "type": "files"
+        }
+      }
+    ],
+    "examples": [
+      {
+        "question": "What is the procedure to verify sensor accuracy in the FZR-045 freezer to prevent defrost faults?",
+        "guidelines": [
+          "The answer should include sensor calibration or verification procedures listed in the manual, emphasizing checks impacting temperature stability."
+        ]
+      },
+      {
+        "question": "How often should the USDA color sensors be calibrated, and what reference standards should be used?",
+        "guidelines": [
+          "The answer should specify calibration intervals and reference standards, indicating adherence to the calibration procedure."
+        ]
+      },
+      {
+        "question": "What are the recommended cutting speed ranges for the C-700 cutter to ensure quality and throughput?",
+        "guidelines": [
+          "The answer should cite the specified parameter ranges that balance quality attributes like defect points and throughput goals."
+        ]
+      },
+      {
+        "question": "How should an operator troubleshoot a jam in the PKR-550 packer that triggers error code pkp-eqp-bld-120?",
+        "guidelines": [
+          "The answer should describe diagnostic steps, jam clearing procedures, and parameter checks as recommended in the troubleshooting guide."
+        ]
+      },
+      {
+        "question": "What are the recommended calibration steps for the C-700 cutter to ensure optimal cut length?",
+        "guidelines": [
+          "The answer should identify calibration procedures outlined in the manual, referencing key parameters like blade sharpness and setting adjustments that impact cut length."
+        ]
+      },
+      {
+        "question": "What are the key items to verify during daily equipment condition checks to prevent quality deviations?",
+        "guidelines": [
+          "The answer should list key inspection points from the checklist that impact quality attributes."
+        ]
+      },
+      {
+        "question": "How should an operator troubleshoot a jam in the PKR-550 packer that triggers error code pkp-eqp-bld-120?",
+        "guidelines": [
+          "The answer should describe diagnostic steps, jam clearing procedures, and parameter checks as recommended in the troubleshooting guide."
+        ]
+      },
+      {
+        "question": "What are the recommended calibration steps for the C-700 cutter to ensure optimal cut length?",
+        "guidelines": [
+          "The answer should identify calibration procedures outlined in the manual, referencing key parameters like blade sharpness and setting adjustments that impact cut length."
+        ]
+      },
+      {
+        "question": "What are the key items to verify during daily equipment condition checks to prevent quality deviations?",
+        "guidelines": [
+          "The answer should list key inspection points from the checklist that impact quality attributes."
+        ]
+      },
+      {
+        "question": "What is the procedure to verify sensor accuracy in the FZR-045 freezer to prevent defrost faults?",
+        "guidelines": [
+          "The answer should include sensor calibration or verification procedures listed in the manual, emphasizing checks impacting temperature stability."
+        ]
+      },
+      {
+        "question": "How can an operator resolve a 'Fryer Temperature Alarm' fault code on model FR-900?",
+        "guidelines": [
+          "The answer should outline diagnostic steps and corrective actions specified in the manual to address the oil temperature alarm."
+        ]
+      },
+      {
+        "question": "How often should the USDA color sensors be calibrated, and what reference standards should be used?",
+        "guidelines": [
+          "The answer should specify calibration intervals and reference standards, indicating adherence to the calibration procedure."
+        ]
+      },
+      {
+        "question": "What does fault code eqp-cutr-bld-021 indicate and what are the initial troubleshooting steps?",
+        "guidelines": [
+          "The answer should interpret the fault code and outline the first diagnostic steps as per the reference."
+        ]
+      },
+      {
+        "question": "What does fault code eqp-cutr-bld-021 indicate and what are the initial troubleshooting steps?",
+        "guidelines": [
+          "The answer should interpret the fault code and outline the first diagnostic steps as per the reference."
+        ]
+      },
+      {
+        "question": "What is the recommended oil temperature setting to minimize defect points while maintaining color quality?",
+        "guidelines": [
+          "The answer should refer to the optimal oil temperature ranges specified to balance defect and color criteria."
+        ]
+      },
+      {
+        "question": "How can the reason code 'qlt-low-dry-solids' be addressed through equipment troubleshooting procedures?",
+        "guidelines": [
+          "The answer should link the reason code to specific troubleshooting steps or maintenance actions described in the document."
+        ]
+      },
+      {
+        "question": "How can an operator resolve a 'Fryer Temperature Alarm' fault code on model FR-900?",
+        "guidelines": [
+          "The answer should outline diagnostic steps and corrective actions specified in the manual to address the oil temperature alarm."
+        ]
+      },
+      {
+        "question": "What are the recommended cutting speed ranges for the C-700 cutter to ensure quality and throughput?",
+        "guidelines": [
+          "The answer should cite the specified parameter ranges that balance quality attributes like defect points and throughput goals."
+        ]
+      },
+      {
+        "question": "How can the reason code 'qlt-low-dry-solids' be addressed through equipment troubleshooting procedures?",
+        "guidelines": [
+          "The answer should link the reason code to specific troubleshooting steps or maintenance actions described in the document."
+        ]
+      },
+      {
+        "question": "What is the recommended oil temperature setting to minimize defect points while maintaining color quality?",
+        "guidelines": [
+          "The answer should refer to the optimal oil temperature ranges specified to balance defect and color criteria."
+        ]
+      }
+    ]
+  },
+  "multi_agent_supervisor": {
+    "config": {
+      "multi_agent_supervisor": {
+        "tile": {
+          "tile_id": "bc0deddc-a9d0-4180-bfe7-dff3e1a89291",
+          "name": "DBGEN_McCain_Closed_Loop_Blend_Optimizer",
+          "tile_type": "MAS",
+          "mlflow_experiment_id": "2894186667722817",
+          "creation_timestamp_ms": 1761844999497,
+          "last_updated_timestamp_ms": 1761845007513,
+          "serving_endpoint_name": "mas-bc0deddc-endpoint",
+          "creator": "brian.lui@databricks.com",
+          "creator_display_name": "Brian Lui",
+          "description": "Supervisor that coordinates data analysis (Genie) and document Q&A (Knowledge Assistant) to monitor hourly blend quality vs PSS, optimize raw potato cost, track detection SLA and downstream penalties, and provide equipment/policy guidance for McCain Idaho closed-loop blending.",
+          "instructions": "Routing policy: \n- Use Genie for quantitative/data questions involving SQL over the brlui.brian_lui_mccain silver/gold tables, KPI calculations, time-series trends, and joins.\n- Use Knowledge Assistant for equipment manuals, OEE reason code definitions, fault/alert procedures, parameter ranges, and troubleshooting how-tos from the 'equipment_manuals_and_oee_docs' collection.\n- For combined questions (e.g., what happened and what to do), first fetch data insights with Genie, then fetch relevant procedures from KA, and synthesize a concise, actionable answer. \nTone: concise, operations-focused, and data-driven. Always reference the exact tables/fields used in analyses when summarizing results. Ensure dates and entities align with the demo story (notably the 2025-09-08..2025-09-15 Idaho L2 event).",
+          "evaluation_run_exists": false,
+          "acl_enabled": true
+        },
+        "agents": [
+          {
+            "name": "Knowledge Assistant",
+            "description": "Knowledge Assistant has access to the PDF collection: equipment_manuals_and_oee_docs. Content: equipment manuals and performance documentation for key line equipment centers (grader, cutter, fryer, freezer, packer) from the last 6 months. Documents include maintenance procedures, calibration steps, troubleshooting guides, error/fault codes (e.g., eqp-cutr-bld-021, oil-temp-alm-118, frzr-def-045), recommended parameter ranges (e.g., fryer oil temperature ranges, cutter blade sharpness thresholds), OEE reason code mappings (e.g., qlt-low-dry-solids, eqp-blade-dull, proc-oil-temp), and how equipment conditions affect quality outputs (avg_length_mm, defect_points, usda_color) and throughput (speed_mtph).\n\nKA can answer:\n- Policy/procedure questions: escalation workflow when alerts trigger, troubleshooting steps for equipment affecting dry solids, defect points, or color.\n- How-to guides: calibration steps for CUTR-700 cutter, oil temperature checks for FRYR-900 fryer, freezer defrost checks, packer alignment.\n- Definitions and mappings: meaning of specific OEE reason codes, interpretation of fault codes (e.g., oil-temp-alm-118), and parameter ranges impacting product specs.\n- Best practices: preventive maintenance schedules and their expected impact on quality metrics (e.g., reducing defect_points via blade maintenance, improving color consistency via oil temp control).\n\nExample question types:\n- \"What are the recommended fryer oil temperature ranges for maintaining USDA color within spec?\"\n- \"How do we interpret error code eqp-cutr-bld-021 and what are the corrective actions?\"\n- \"Which OEE reason codes map to low dry solids or blade dullness, and how should operators respond?\"\n- \"What calibration steps are required for the CUTR-700 to stabilize average_length_mm readings?\"\n- \"What is the escalation chain when repeated alerts occur within two hours?\" (covered via troubleshooting and procedure docs in the collection.)",
+            "agent_type": "serving-endpoint",
+            "serving_endpoint": {
+              "name": "ka-0d4d18d0-endpoint"
+            }
+          },
+          {
+            "name": "Genie Data Explorer",
+            "description": "Genie can query and analyze the following Databricks tables in catalog brlui, schema brian_lui_mccain. It supports aggregations, time-series analysis by hour/day/week, joins across silver/gold layers, KPI computation, and scenario rollups.\n\nGold tables:\n- brlui.brian_lui_mccain.gold_blend_hourly_quality\n  Columns: plant_id STRING, line_id STRING, sku_id STRING, hour_bucket TIMESTAMP, dry_solids_pct_blend DOUBLE, defect_points_blend DOUBLE, avg_length_mm_blend DOUBLE, sku_min_dry_solids_pct DOUBLE, potato_cost_per_kg_blend DECIMAL(2,2), sources ARRAY<STRING>, fractions ARRAY<DOUBLE>, compliance_flag BOOLEAN, alert_dry_band_flag BOOLEAN, alert_defect_band_flag BOOLEAN. Use for hourly compliance vs PSS, alert flags, and trend lines (e.g., dry solids vs sku_min) filtered by plant/line/sku and hour_bucket.\n- brlui.brian_lui_mccain.gold_blend_suggestions\n  Columns: plant_id, line_id, sku_id, hour_bucket, source_id_list ARRAY<STRING>, actual_fractions ARRAY<DOUBLE>, suggested_fractions ARRAY<DOUBLE>, expected_cost_per_kg_usd DECIMAL(2,2), compliance_flag BOOLEAN, adoption_flag BOOLEAN, infeasible_flag BOOLEAN, infeasible_reason STRING. Use to compare suggested vs actual fractions (+/-3pp adoption), identify infeasible hours and reasons, and estimate expected cost per kg under optimal blend.\n- brlui.brian_lui_mccain.gold_blend_hourly_kpis\n  Columns: date TIMESTAMP, plant_id, line_id, sku_id, hours_total BIGINT, hours_in_spec BIGINT, compliance_rate_pct DECIMAL(27,2), adoption_rate_pct DOUBLE. Use for daily compliance and adoption KPIs and counters.\n- brlui.brian_lui_mccain.gold_blend_costs\n  Columns: date TIMESTAMP, plant_id, line_id, sku_id, avg_cost_per_mt_usd DECIMAL(12,7). Use for daily average raw potato cost per metric ton, and join with hourly KPIs for cost vs compliance charts.\n- brlui.brian_lui_mccain.gold_detection_sla\n  Columns: plant_id, line_id, date DATE, detection_within_24h_rate DECIMAL(8,2). Use to track 24h detection SLA by plant/line. Event window expected dip around 2025-09-09..09-11.\n- brlui.brian_lui_mccain.gold_downstream_penalties\n  Columns: week_start TIMESTAMP, plant_id, line_id, sku_id, disposition_type STRING, penalties_usd DECIMAL(24,2). Use for stacked weekly penalties by disposition (repack, lower_price, reblend, blocked_stock, re_sample, donation, dump) and KPI totals.\n- brlui.brian_lui_mccain.gold_policy_alignment\n  Columns: date DATE, plant_id, line_id, policy_type STRING, target_burbank_pct DOUBLE, reroute_threshold_pct DOUBLE, region_note STRING, alignment_marker INT. Use to align policy changes with anomaly periods and recovery.\n- brlui.brian_lui_mccain.gold_pss_mismatch_daily\n  Columns: plant_id, line_id, date DATE, sku_id, loads_received BIGINT, loads_under_quality BIGINT, loads_over_quality BIGINT, run_minutes DOUBLE, run_under_quality_minutes DOUBLE, under_quality_share_pct DOUBLE, detection_within_24h_rate DECIMAL(8,2), sample_supplier_region STRING, sample_variety STRING. Use to quantify under/over-quality shares and SLA during the 2025-09-08..09-13 Idaho Line 2 event.\n- brlui.brian_lui_mccain.gold_quality_cost_attribution\n  Columns: plant_id, line_id, date DATE, sku_id, oil_cost_usd DOUBLE, yield_loss_usd DOUBLE, labor_rework_usd DOUBLE, performance_derate_cost_usd DOUBLE, opportunity_cost_usd DECIMAL(11,1), total_cost_overrun_usd DOUBLE. Use to attribute costs over the event window (expected totals ~$265k across 2025-09-08..2025-09-15 at Idaho).\n- brlui.brian_lui_mccain.gold_ref_usda_ordinal\n  Columns: usda_color STRING, ord INT. Use to order USDA color grades A..E (0..4) in analyses.\n- brlui.brian_lui_mccain.gold_scenario_modeling\n  Columns: scenario_id STRING, scenario_type STRING, plant_id STRING, line_id STRING, sku_id STRING, date DATE, inputs_struct MAP<STRING, STRING>, constraints_struct MAP<STRING, STRING>, projected_metrics MAP<STRING, STRING>, optimization_outputs MAP<STRING, STRING>, roi_npv_usd DOUBLE, payback_months DOUBLE. Use for what-if storage degradation or equipment upgrade ROI and payback comparisons by plant/line/sku/date.\n- brlui.brian_lui_mccain.gold_supplier_variety_contributors\n  Columns: week_start TIMESTAMP, plant_id, line_id, sku_id, supplier_id STRING, variety STRING, supplier_region STRING, loads BIGINT, volume_kg DOUBLE, mean_dry_solids_pct DOUBLE, mean_defect_points DOUBLE, mismatch_rate DECIMAL(27,2), mismatch_loads BIGINT. Use to evaluate supplier/variety/region reliability and blending priority.\n- brlui.brian_lui_mccain.gold_global_filters_bridge\n  Columns: dataset_name STRING, field_name STRING, field_value STRING, date DATE. Use to power global filters across datasets.\n\nSilver tables (for deeper dives and joins):\n- brlui.brian_lui_mccain.silver_hourly_blend_intake\n  Columns: plant_id, line_id, sku_id, hour_bucket TIMESTAMP, sources ARRAY<STRING>, varieties ARRAY<STRING>, fractions ARRAY<DOUBLE>, dry_solids_pct_blend DOUBLE, defect_points_blend DOUBLE, avg_length_mm_blend DOUBLE, total_weight_kg DOUBLE, potato_cost_per_kg_blend DECIMAL(2,2). Use to reconstruct actual hourly blend composition and costs.\n- brlui.brian_lui_mccain.silver_line_quality_events\n  Columns: event_time TIMESTAMP, date DATE, hour_bucket TIMESTAMP, week_start TIMESTAMP, plant_id STRING, sku_id STRING, variety STRING, avg_length_mm DOUBLE, usda_color_0..4 BIGINT, defect_points DOUBLE, dry_solids_pct DOUBLE, usda_color_mode STRING. Use for line-level quality timeseries and deriving alert bands.\n- brlui.brian_lui_mccain.silver_line_runs\n  Columns: plant_id, line_id, running_sku_id, run_id, run_start TIMESTAMP, run_end TIMESTAMP, run_duration_min DECIMAL(27,6), total_samples BIGINT, avg_length_mm_run DOUBLE, modal_usda_color_run STRING, avg_defect_points_run DOUBLE, avg_dry_solids_proxy_run DOUBLE, avg_oil_uptake_pct_run DOUBLE, avg_speed_mtph_run DOUBLE, date DATE, week_start TIMESTAMP. Use to evaluate run-level performance context and derates.\n- brlui.brian_lui_mccain.silver_line_schedule_and_changes\n  Columns: change_id STRING, plant_id STRING, effective_time TIMESTAMP, date DATE, line_id STRING, running_sku_id STRING, policy_type STRING, policy_detail STRING, region_note STRING, weather_event_flag BOOLEAN. Use to align alerts/adoption with schedule and weather flags.\n- brlui.brian_lui_mccain.silver_oee_equipment_events\n  Columns: time_id DATE, plant_id STRING, line_id STRING, plant_name STRING, plant_line STRING, primary_reason_cd STRING, secondary_reason_cd STRING, downtime_cat_1 STRING, downtime_cat_2 STRING, sku_id STRING, plant_line_product STRING, workshift STRING, start_time STRING, start_hour INT, end_time STRING, end_hour INT, duration INT, downtime_duration INT, qty_packed DOUBLE, num_totes_on DOUBLE. Use for performance derates and equipment context during events.\n- brlui.brian_lui_mccain.silver_potato_load_quality\n  Columns: load_id STRING, plant_id STRING, plant_name STRING, delivery_time TIMESTAMP, date DATE, hour_of_day INT, week_start TIMESTAMP, supplier_id STRING, supplier_region STRING, variety STRING, variety_label_raw STRING, load_number STRING, gross_weight_kg DOUBLE, net_weight_kg DOUBLE, avg_length_mm DOUBLE, usda_color STRING, defect_points DOUBLE, dry_solids_pct DOUBLE, attributecode STRING, sampleattributelabel STRING, attributevalue DOUBLE, intended_line_id STRING, intended_sku_id STRING, storage_bin_id STRING, dry_solids_low_flag BOOLEAN, defect_high_flag BOOLEAN. Use to analyze intake quality by supplier/region/variety and link to blends.\n- brlui.brian_lui_mccain.silver_scenario_inputs\n  Columns: load_id, plant_id, line_id, sku_id, storage_bin_id, date, delivery_time, variety, supplier_region, usda_color, defect_points, dry_solids_pct, gross_weight_kg, net_weight_kg, bin_id, bin_temp_c DECIMAL(6,5), bin_turnover_events BIGINT, expected_defect_reduction_rate DECIMAL(2,2), expected_oil_uptake_reduction_rate DECIMAL(3,3), capex_usd DECIMAL(7,1), install_downtime_hours INT. Use to seed scenario modeling.\n\nKey KPIs and calculations Genie can produce:\n- Hourly/daily compliance rates (gold_blend_hourly_kpis.compliance_rate_pct) by plant_id/line_id/sku_id/date; trend vs event window 2025-09-08..2025-09-15.\n- Detection SLA within 24h (gold_detection_sla.detection_within_24h_rate) and relation to mismatch shares (gold_pss_mismatch_daily.under_quality_share_pct).\n- Raw potato cost per mt (gold_blend_costs.avg_cost_per_mt_usd) and savings opportunity by comparing to gold_blend_suggestions.expected_cost_per_kg_usd aggregated to per-mt and per-period.\n- Adoption rate (gold_blend_hourly_kpis.adoption_rate_pct) and hour-level adoption_flag from gold_blend_suggestions.\n- Downstream penalties totals and mix by disposition_type by week_start (gold_downstream_penalties).\n- Supplier reliability metrics (mismatch_rate, mean_dry_solids_pct, mean_defect_points, volume_kg) by supplier_id/variety/region (gold_supplier_variety_contributors).\n- Cost attribution by component (oil_cost_usd, yield_loss_usd, labor_rework_usd, performance_derate_cost_usd) and total_cost_overrun_usd during the event (gold_quality_cost_attribution).\n- Time-series of dry solids vs sku_min with alert bands and flags (gold_blend_hourly_quality with alert_*_band_flag).\n\nExample joins and analyses:\n- Join gold_blend_hourly_quality to gold_blend_suggestions on plant_id, line_id, sku_id, hour_bucket to compare actual vs suggested fractions and expected_cost_per_kg_usd.\n- Join gold_blend_costs (daily) to gold_blend_hourly_kpis to plot cost vs compliance by date for a plant/line/sku.\n- Filter gold_pss_mismatch_daily for plant_id='idaho', line_id='L2', date between '2025-09-08' and '2025-09-13' to quantify under_quality_share_pct and detection_within_24h_rate dip.\n- Aggregate gold_downstream_penalties by week_start and disposition_type to see penalty surge during the event window.\n\nBusiness questions Genie can answer include: hourly alerts and breaches, suggested actions and adoption, raw cost vs compliance tradeoff, supplier performance and procurement guidance, SLA trends, and event attribution to cost components.",
+            "agent_type": "genie-space",
+            "genie_space": {
+              "id": "01f0b5a5d15b1c71b05d5341b18c4ae5"
+            }
+          }
+        ],
+        "status": {
+          "endpoint_status": "ONLINE"
+        }
+      }
+    },
+    "examples": []
+  },
+  "dashboards": {
+    "closed_loop_blend_optimization": {
+      "title": "closed-loop blend optimization - mccain idaho",
+      "id": "01f0b5a6108d1b4899e595521bb31cae"
+    }
+  }
+}
