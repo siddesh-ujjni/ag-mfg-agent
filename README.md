@@ -1,7 +1,7 @@
-# mccain - Databricks Asset Bundle
+# mccain_ebc - Databricks Asset Bundle
 
 ## Overview
-coo of mccain foods requires closed-loop action suggestions in continuous production: model multi-source continuous deliveries with adjustable blend fractions, compare hourly blend quality at line entry against sku-specific minimum raw potato quality characteristics (pss), and suggest optimal source blending that just meets targets at minimal potato cost. emphasize cost-quality tradeoffs of raw potatoes and downstream additional costs when finished goods miss quality (actions include repack to different brand, sell at lower price, reblend into different product, blocked stock, re-sample, donation, dump). maintain 24h detection but prioritize proactive blend recommendations that prevent misses at lowest raw cost.
+McCain Foods demo for a multi-agent manufacturing optimization system: detect under/over-quality production lines in near-real-time, quantify raw potato cost implications, and propose human-review scenario plans (load reallocation and equipment upgrades). Between 2025-07-10 and 2025-10-31, the system flags several lines where blend quality exceeded targets (over-quality) and others where it fell short (under-quality), aligning anomalies to raw load quality variability, OSI PI line quality signals, OEE downtime patterns, and equipment throughput constraints. Impact quantified: ~$1.8M avoidable raw material cost from persistent over-quality and ~$0.9M risk from under-quality rework/downgrades. The dashboard ties ingredient quality -> line signals -> equipment/OEE -> dated events -> financial exposure.
 
 ## Deployment
 
@@ -68,24 +68,24 @@ The workflow will:
 ### Agent Bricks
 This bundle includes AI agent resources:
 
-- **Genie Space** (ID: `01f0b5a5d15b1c71b05d5341b18c4ae5`)
+- **Genie Space** (ID: `01f0b9cf5c291e4cbc5e2de1c372cca1`)
   - Natural language interface for data exploration
   - Configured with table identifiers from your catalog/schema
   - Sample questions and instructions included
 
-- **Knowledge Assistant** (ID: `0d4d18d0-6f18-42db-98bd-562ab656a925`)
+- **Knowledge Assistant** (ID: `338a2c1b-1787-4632-8839-a75f48df11aa`)
   - AI assistant with knowledge sources from Unity Catalog volumes
   - Vector search-powered retrieval augmented generation (RAG)
   - Example questions and guidelines included
 
-- **Multi-Agent Supervisor** (ID: `bc0deddc-a9d0-4180-bfe7-dff3e1a89291`)
+- **Multi-Agent Supervisor** (ID: `244c3742-55f0-4ee7-b500-bab88d4e2b25`)
   - Orchestrates multiple specialized agents
   - Routes queries to appropriate sub-agents (Genie, KA, endpoints)
   - Complex multi-step workflows supported
 
 ### Dashboards
 This bundle includes Lakeview dashboards:
-- **closed-loop blend optimization - mccain idaho** - Business intelligence dashboard with visualizations
+- **Production Quality, OEE, and Cost Exposure** - Business intelligence dashboard with visualizations
 
 ### PDF Documents
 No PDF documents are included in this demo.
@@ -93,9 +93,9 @@ No PDF documents are included in this demo.
 ## Configuration
 
 ### Unity Catalog
-- **Catalog**: `brlui`
-- **Schema**: `brian_lui_mccain`
-- **Workspace Path**: `/Users/brian.lui@databricks.com/mccain`
+- **Catalog**: `demo_generator`
+- **Schema**: `brian_lui_mccain_ebc`
+- **Workspace Path**: `/Users/brian.lui@databricks.com/mccain_ebc`
 
 ### Customization
 You can modify the bundle by editing `databricks.yml`:
@@ -104,13 +104,13 @@ You can modify the bundle by editing `databricks.yml`:
 - Add additional tasks or resources
 
 ## Key Questions This Demo Answers
-1. hourly monitoring: which plant/line/sku hours show blend quality approaching or breaching tolerance bands vs pss (dry solids, defect points, color), and when did alerts trigger?
-2. automated alerts & escalation: what thresholds (e.g., dry solids within 0.3 pp of min, defect points within 0.2 of max) generated alerts, what corrective actions were suggested (fraction shifts, reroute, slow-down), and how quickly were they executed?
-3. cost impact simulation: for hours exceeding cost thresholds, what is the projected raw cost vs optimal blend cost, what is the delta per mt, and which fraction adjustments reduce cost while staying within specs?
-4. supplier performance adjustment: which suppliers/varieties exhibit consistent quality variance and cost impact over the last 8 weeks, and how should blending priority or procurement allocations be adjusted?
-5. suggested actions vs adoption: how often were suggested fraction changes applied within tolerance (+/-3 pp), and what compliance and cost improvements followed?
-6. alert policy effectiveness: did escalation levels (operator -> supervisor -> quality manager) reduce time-to-correct when tolerance bands were breached, and by how much per line?
-7. risk outlook: given current availability, which upcoming hours are likely to hit alert thresholds, and what pre-emptive actions (blend shift, reroute, supplier swap) are recommended?
+1. When did each line deviate from PSS targets, and by how many percentage points relative to tolerance?
+2. Which plants/lines show persistent over-quality vs under-quality, and what supplier/load mix changes align to those deviations?
+3. What are the incremental raw potato cost implications of over-quality and the rework/downgrade exposure from under-quality during 2025-08-18..2025-09-12?
+4. How do OEE components (availability, performance, quality) move around the deviation windows, and which downtime codes correlate with quality drift?
+5. What scenario actions (load reallocation or equipment upgrade) yield the largest savings while maintaining finished product quality?
+6. How much high-DM load can be reallocated intra-region without violating logistics constraints, and what is the expected blend DM by hour after reallocation?
+7. Which equipment upgrades on NA-ID-P01 L3 offer the best ROI in stabilizing throughput and reducing defects?
 
 ## Deployment to New Workspaces
 
@@ -150,5 +150,5 @@ Simply run `databricks bundle deploy` in any workspace where you have the requir
 ## Generated with AI Demo Generator
 🤖 This bundle was automatically created using the Databricks AI Demo Generator.
 
-**Created**: 2025-10-28 17:11:24
+**Created**: 2025-11-04 22:26:52
 **User**: brian.lui@databricks.com

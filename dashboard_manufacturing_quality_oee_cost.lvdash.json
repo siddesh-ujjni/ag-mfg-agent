@@ -1,0 +1,1377 @@
+{
+  "datasets": [
+    {
+      "name": "ds_kpi_total_tons",
+      "displayName": "KPI - Total Tons (Last 30 Days)",
+      "queryLines": [
+        "SELECT total_tons_last_30d AS total_tons_last_30d FROM demo_generator.brian_lui_mccain_ebc.gold_counter_total_tons_last_30d "
+      ]
+    },
+    {
+      "name": "ds_kpi_raw_spend",
+      "displayName": "KPI - Raw Potato Spend (Last 30 Days)",
+      "queryLines": [
+        "SELECT raw_potato_spend_last_30d_usd AS raw_potato_spend_last_30d_usd FROM demo_generator.brian_lui_mccain_ebc.gold_counter_raw_potato_spend_last_30d "
+      ]
+    },
+    {
+      "name": "ds_kpi_oee_perf",
+      "displayName": "KPI - OEE Performance Avg (Last 7 Days)",
+      "queryLines": [
+        "SELECT oee_performance_avg_last_7d AS oee_performance_avg_last_7d FROM demo_generator.brian_lui_mccain_ebc.gold_counter_oee_performance_avg_last_7d "
+      ]
+    },
+    {
+      "name": "ds_kpi_rework_exposure",
+      "displayName": "KPI - Downgrade/Rework Exposure (Last 30 Days)",
+      "queryLines": [
+        "SELECT downgrade_rework_exposure_last_30d_usd AS downgrade_rework_exposure_last_30d_usd FROM demo_generator.brian_lui_mccain_ebc.gold_counter_downgrade_rework_last_30d "
+      ]
+    },
+    {
+      "name": "ds_blend_daily",
+      "displayName": "Daily Blend Intake Quality by Line",
+      "queryLines": [
+        "SELECT lm.date AS date, lm.plant_name AS plant_name, lm.plant_line AS plant_line, lm.product_name AS product_name, COALESCE(SPLIT(lm.plant_name, '-')[0], 'NA') AS region, CONCAT(lm.plant_name, '-', lm.plant_line) AS line_id, lm.blend_dm_pct AS blend_dm_pct, lm.defect_points AS defect_points, lm.hours_under_quality AS hours_under_quality, lm.hours_over_quality AS hours_over_quality, pss.plant_id AS plant_id, CAST((pss.min_dry_matter_pct + pss.max_dry_matter_pct)/2.0 AS DOUBLE) AS pss_target_dm_pct FROM demo_generator.brian_lui_mccain_ebc.gold_line_hourly_metrics lm LEFT JOIN (SELECT plant_name, plant_line, MAX(plant_id) AS plant_id, MAX(min_dry_matter_pct) AS min_dry_matter_pct, MAX(max_dry_matter_pct) AS max_dry_matter_pct FROM demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss GROUP BY plant_name, plant_line) pss ON lm.plant_name = pss.plant_name AND lm.plant_line = pss.plant_line ORDER BY lm.date ASC, lm.plant_name ASC, lm.plant_line ASC "
+      ]
+    },
+    {
+      "name": "ds_quality_weekly",
+      "displayName": "Weekly Quality by Plant",
+      "queryLines": [
+        "SELECT qw.week_start AS week_start, qw.plant_name AS plant_name, COALESCE(SPLIT(qw.plant_name, '-')[0], 'NA') AS region, map_plant.plant_id AS plant_id, qw.avg_dry_solids_pct AS avg_dry_solids_pct, qw.avg_defect_points AS avg_defect_points, qw.hours_under_quality AS hours_under_quality, qw.hours_over_quality AS hours_over_quality FROM demo_generator.brian_lui_mccain_ebc.gold_quality_weekly qw LEFT JOIN (SELECT plant_name, MAX(plant_id) AS plant_id FROM demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss GROUP BY plant_name) map_plant ON qw.plant_name = map_plant.plant_name ORDER BY qw.week_start ASC, qw.plant_name ASC "
+      ]
+    },
+    {
+      "name": "ds_oee_daily",
+      "displayName": "Daily OEE KPIs by Line",
+      "queryLines": [
+        "SELECT ok.date AS date, ok.plant_name AS plant_name, ok.plant_line AS plant_line, COALESCE(SPLIT(ok.plant_name, '-')[0], 'NA') AS region, map_line.plant_id AS plant_id, ok.event_count AS event_count, ok.total_downtime_min AS total_downtime_min, ok.run_duration_min AS run_duration_min, ok.qty_packed_kg AS qty_packed_kg, ok.num_totes_on AS num_totes_on, ok.oee_performance AS oee_performance FROM demo_generator.brian_lui_mccain_ebc.gold_oee_kpis ok LEFT JOIN (SELECT plant_name, plant_line, MAX(plant_id) AS plant_id FROM demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss GROUP BY plant_name, plant_line) map_line ON ok.plant_name = map_line.plant_name AND ok.plant_line = map_line.plant_line ORDER BY ok.date ASC, ok.plant_name ASC, ok.plant_line ASC "
+      ]
+    },
+    {
+      "name": "ds_oee_events",
+      "displayName": "Downtime Events Detail",
+      "queryLines": [
+        "SELECT evt.event_id AS event_id, evt.plant_name AS plant_name, evt.plant_line AS plant_line, CAST(evt.event_time AS TIMESTAMP) AS event_time, CAST(DATE(evt.event_time) AS DATE) AS date, COALESCE(SPLIT(evt.plant_name, '-')[0], 'NA') AS region, map_line.plant_id AS plant_id, evt.duration_min AS duration_min, evt.downtime_min AS downtime_min, evt.code AS code, evt.component AS component, evt.notes AS notes FROM demo_generator.brian_lui_mccain_ebc.silver_oee_events evt LEFT JOIN (SELECT plant_name, plant_line, MAX(plant_id) AS plant_id FROM demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss GROUP BY plant_name, plant_line) map_line ON evt.plant_name = map_line.plant_name AND evt.plant_line = map_line.plant_line ORDER BY event_time DESC "
+      ]
+    },
+    {
+      "name": "ds_cumulative_costs",
+      "displayName": "Cumulative Spend and Over-Quality Waste by Region",
+      "queryLines": [
+        "SELECT date AS date, region AS region, cumulative_spend_usd AS cumulative_spend_usd, cumulative_over_quality_waste_usd AS cumulative_over_quality_waste_usd FROM demo_generator.brian_lui_mccain_ebc.gold_cumulative_costs ORDER BY date ASC, region ASC "
+      ]
+    },
+    {
+      "name": "ds_scenarios",
+      "displayName": "Scenario Recommendations",
+      "queryLines": [
+        "SELECT rec.recommendation_id AS recommendation_id, rec.type AS type, rec.plant_name AS plant_name, rec.plant_line AS plant_line, COALESCE(SPLIT(rec.plant_name, '-')[0], 'NA') AS region, map_line.plant_id AS plant_id, rec.expected_savings_usd AS expected_savings_usd, CAST(rec.expected_quality_delta_pp AS DOUBLE) AS expected_quality_delta_pp, CAST(rec.confidence AS DOUBLE) AS confidence, rec.rationale AS rationale FROM demo_generator.brian_lui_mccain_ebc.gold_scenario_recommendations rec LEFT JOIN (SELECT plant_name, plant_line, MAX(plant_id) AS plant_id FROM demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss GROUP BY plant_name, plant_line) map_line ON rec.plant_name = map_line.plant_name AND rec.plant_line = map_line.plant_line ORDER BY rec.expected_savings_usd DESC "
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "manufacturing_quality_oee_cost",
+      "displayName": "Production Quality, OEE, and Cost Exposure",
+      "layout": [
+        {
+          "widget": {
+            "name": "header_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "# Production Quality, OEE, and Cost Exposure\n",
+                "Monitoring blend intake quality vs Product Specifications, OSI PI end-of-line quality, OEE performance/downtime, and financial exposure. Highlights EU-NL-P03 L2 over-quality and NA-ID-P01 L3 under-quality during 2025-08-18..2025-09-12, with supplier mix and cutter constraints.\n"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_total_tons_30d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpi_total_tons",
+                  "fields": [
+                    {
+                      "name": "sum(total_tons_last_30d)",
+                      "expression": "SUM(`total_tons_last_30d`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(total_tons_last_30d)",
+                  "displayName": "Total Tons (Last 30 Days)",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Total Tons Processed (Last 30 Days)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Sum of tons processed over trailing 30 days across all plants/lines."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_raw_spend_30d_usd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpi_raw_spend",
+                  "fields": [
+                    {
+                      "name": "sum(raw_potato_spend_last_30d_usd)",
+                      "expression": "SUM(`raw_potato_spend_last_30d_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(raw_potato_spend_last_30d_usd)",
+                  "displayName": "Raw Potato Spend ($, 30d)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Raw Potato Spend (Last 30 Days, $)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Sum of raw potato spend over trailing 30 days."
+              }
+            }
+          },
+          "position": {
+            "x": 2,
+            "y": 2,
+            "width": 2,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_oee_performance_avg_7d",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpi_oee_perf",
+                  "fields": [
+                    {
+                      "name": "sum(oee_performance_avg_last_7d)",
+                      "expression": "SUM(`oee_performance_avg_last_7d`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(oee_performance_avg_last_7d)",
+                  "displayName": "OEE Performance (Avg 7d)",
+                  "format": {
+                    "type": "number",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 1
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "OEE Performance (Avg Last 7 Days)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Average OEE performance over trailing 7 days."
+              }
+            }
+          },
+          "position": {
+            "x": 4,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "kpi_downgrade_rework_exposure_30d_usd",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_kpi_rework_exposure",
+                  "fields": [
+                    {
+                      "name": "sum(downgrade_rework_exposure_last_30d_usd)",
+                      "expression": "SUM(`downgrade_rework_exposure_last_30d_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(downgrade_rework_exposure_last_30d_usd)",
+                  "displayName": "Downgrade/Rework Exposure ($, 30d)",
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 2
+                    }
+                  }
+                }
+              },
+              "frame": {
+                "title": "Downgrade/Rework Cost Exposure (Last 30 Days, $)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Aggregated downgrade/rework exposure over trailing 30 days."
+              }
+            }
+          },
+          "position": {
+            "x": 5,
+            "y": 2,
+            "width": 1,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "line_blend_dm_vs_target_daily_by_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "daily(date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `date`)"
+                    },
+                    {
+                      "name": "line_id",
+                      "expression": "`line_id`"
+                    },
+                    {
+                      "name": "avg(blend_dm_pct)",
+                      "expression": "AVG(`blend_dm_pct`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "axis": {
+                    "title": "Date"
+                  },
+                  "displayName": "Date"
+                },
+                "y": {
+                  "fieldName": "avg(blend_dm_pct)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Blend DM (%)"
+                  },
+                  "displayName": "Blend DM (%)"
+                },
+                "color": {
+                  "fieldName": "line_id",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Line"
+                }
+              },
+              "frame": {
+                "title": "Blend Intake DM vs Target (Daily by Line)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "X: date; Y: avg blend_dm_pct; color: line. Persistent deviations visible for EU-NL-P03 L2 (over) and NA-ID-P01 L3 (under)."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_defect_rate_weekly_by_plant_grouped",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_quality_weekly",
+                  "fields": [
+                    {
+                      "name": "weekly(week_start)",
+                      "expression": "DATE_TRUNC(\"WEEK\", `week_start`)"
+                    },
+                    {
+                      "name": "plant_name",
+                      "expression": "`plant_name`"
+                    },
+                    {
+                      "name": "avg(avg_defect_points)",
+                      "expression": "AVG(`avg_defect_points`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "weekly(week_start)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "axis": {
+                    "title": "Week Start"
+                  },
+                  "displayName": "Week Start"
+                },
+                "y": {
+                  "fieldName": "avg(avg_defect_points)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Avg Defect Points"
+                  },
+                  "displayName": "Avg Defect Points"
+                },
+                "color": {
+                  "fieldName": "plant_name",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Plant"
+                }
+              },
+              "mark": {
+                "layout": "group"
+              },
+              "frame": {
+                "title": "End-of-Line Defect Rate by Plant (Weekly Grouped Bars)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "X: week_start; grouped bars by plant; Y: avg defect points (proxy for defect rate). Highlights NA-ID-P01 elevation during 2025-08-22..2025-09-05."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 5,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "line_oee_components_daily_by_line",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_oee_daily",
+                  "fields": [
+                    {
+                      "name": "daily(date)",
+                      "expression": "DATE_TRUNC(\"DAY\", `date`)"
+                    },
+                    {
+                      "name": "avg(oee_performance)",
+                      "expression": "AVG(`oee_performance`)"
+                    },
+                    {
+                      "name": "avg(total_downtime_min)",
+                      "expression": "AVG(`total_downtime_min`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "line",
+              "encodings": {
+                "x": {
+                  "fieldName": "daily(date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "axis": {
+                    "title": "Date"
+                  }
+                },
+                "y": {
+                  "fields": [
+                    {
+                      "fieldName": "avg(oee_performance)",
+                      "displayName": "OEE Performance"
+                    },
+                    {
+                      "fieldName": "avg(total_downtime_min)",
+                      "displayName": "Downtime (min)"
+                    }
+                  ],
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "OEE / Downtime"
+                  }
+                }
+              },
+              "frame": {
+                "title": "OEE Components (Daily Lines)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "X: date; Y: OEE performance and downtime (min). Expect dips around downtime events on NA-ID-P01 L3."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_cumulative_spend_vs_overquality_by_region",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_cumulative_costs",
+                  "fields": [
+                    {
+                      "name": "monthly(date)",
+                      "expression": "DATE_TRUNC(\"MONTH\", `date`)"
+                    },
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    },
+                    {
+                      "name": "sum(cumulative_spend_usd)",
+                      "expression": "SUM(`cumulative_spend_usd`)"
+                    },
+                    {
+                      "name": "sum(cumulative_over_quality_waste_usd)",
+                      "expression": "SUM(`cumulative_over_quality_waste_usd`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "monthly(date)",
+                  "scale": {
+                    "type": "temporal"
+                  },
+                  "axis": {
+                    "title": "Month"
+                  },
+                  "displayName": "Month"
+                },
+                "y": {
+                  "fieldName": "sum(cumulative_spend_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-currency",
+                    "currencyCode": "USD",
+                    "abbreviation": "compact",
+                    "decimalPlaces": {
+                      "type": "max",
+                      "places": 0
+                    }
+                  },
+                  "axis": {
+                    "title": "Cumulative Spend ($)"
+                  },
+                  "displayName": "Cumulative Spend ($)"
+                },
+                "y2": {
+                  "fieldName": "sum(cumulative_over_quality_waste_usd)",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "axis": {
+                    "title": "Cumulative Over-Quality Waste ($)"
+                  },
+                  "displayName": "Cumulative Over-Quality Waste ($)"
+                },
+                "color": {
+                  "fieldName": "region",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "displayName": "Region"
+                }
+              },
+              "frame": {
+                "title": "Raw Potato Spend vs Over-Quality Waste (Cumulative by Region)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Stacked cumulative spend by region with over-quality waste overlay. EU should show higher contribution from EU-NL-P03."
+              }
+            }
+          },
+          "position": {
+            "x": 3,
+            "y": 10,
+            "width": 3,
+            "height": 5
+          }
+        },
+        {
+          "widget": {
+            "name": "table_oee_downtime_events",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_oee_events",
+                  "fields": [
+                    {
+                      "name": "event_id",
+                      "expression": "`event_id`"
+                    },
+                    {
+                      "name": "plant_name",
+                      "expression": "`plant_name`"
+                    },
+                    {
+                      "name": "plant_line",
+                      "expression": "`plant_line`"
+                    },
+                    {
+                      "name": "event_time",
+                      "expression": "`event_time`"
+                    },
+                    {
+                      "name": "duration_min",
+                      "expression": "`duration_min`"
+                    },
+                    {
+                      "name": "code",
+                      "expression": "`code`"
+                    },
+                    {
+                      "name": "component",
+                      "expression": "`component`"
+                    },
+                    {
+                      "name": "notes",
+                      "expression": "`notes`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "event_id",
+                    "displayName": "Event ID",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "plant_name",
+                    "displayName": "Plant",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "plant_line",
+                    "displayName": "Line",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "event_time",
+                    "displayName": "Event Time",
+                    "type": "timestamp",
+                    "displayAs": "datetime",
+                    "dateTimeFormat": "yyyy-MM-dd HH:mm"
+                  },
+                  {
+                    "fieldName": "duration_min",
+                    "displayName": "Duration (min)",
+                    "type": "float",
+                    "displayAs": "number",
+                    "numberFormat": "0.0"
+                  },
+                  {
+                    "fieldName": "code",
+                    "displayName": "Code",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "component",
+                    "displayName": "Component",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "notes",
+                    "displayName": "Notes",
+                    "type": "string",
+                    "displayAs": "string"
+                  }
+                ]
+              },
+              "itemsPerPage": 10,
+              "frame": {
+                "title": "Downtime Events Table",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Trace key events such as DOW-PI-4521 and DOW-PI-4574 on NA-ID-P01 L3."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 15,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "table_scenario_recommendations_top",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ds_scenarios",
+                  "fields": [
+                    {
+                      "name": "recommendation_id",
+                      "expression": "`recommendation_id`"
+                    },
+                    {
+                      "name": "type",
+                      "expression": "`type`"
+                    },
+                    {
+                      "name": "plant_name",
+                      "expression": "`plant_name`"
+                    },
+                    {
+                      "name": "plant_line",
+                      "expression": "`plant_line`"
+                    },
+                    {
+                      "name": "expected_savings_usd",
+                      "expression": "`expected_savings_usd`"
+                    },
+                    {
+                      "name": "expected_quality_delta_pp",
+                      "expression": "`expected_quality_delta_pp`"
+                    },
+                    {
+                      "name": "confidence",
+                      "expression": "`confidence`"
+                    },
+                    {
+                      "name": "rationale",
+                      "expression": "`rationale`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "recommendation_id",
+                    "displayName": "Recommendation ID",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "type",
+                    "displayName": "Type",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "plant_name",
+                    "displayName": "Plant",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "plant_line",
+                    "displayName": "Line",
+                    "type": "string",
+                    "displayAs": "string"
+                  },
+                  {
+                    "fieldName": "expected_savings_usd",
+                    "displayName": "Expected Savings ($)",
+                    "type": "float",
+                    "displayAs": "number",
+                    "numberFormat": "$0,0"
+                  },
+                  {
+                    "fieldName": "expected_quality_delta_pp",
+                    "displayName": "Expected Quality \u0394 (pp)",
+                    "type": "float",
+                    "displayAs": "number",
+                    "numberFormat": "0.0"
+                  },
+                  {
+                    "fieldName": "confidence",
+                    "displayName": "Confidence",
+                    "type": "float",
+                    "displayAs": "number",
+                    "numberFormat": "0.0"
+                  },
+                  {
+                    "fieldName": "rationale",
+                    "displayName": "Rationale",
+                    "type": "string",
+                    "displayAs": "string"
+                  }
+                ]
+              },
+              "itemsPerPage": 10,
+              "frame": {
+                "title": "Scenario Suggestions (Top Recommendations)",
+                "showTitle": true,
+                "showDescription": true,
+                "description": "Load reallocation and equipment upgrade proposals with expected savings and quality impact."
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 21,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS"
+    },
+    {
+      "name": "global_filters",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter_date_range",
+            "queries": [
+              {
+                "name": "ds_blend_daily_date",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_quality_weekly_week_start",
+                "query": {
+                  "datasetName": "ds_quality_weekly",
+                  "fields": [
+                    {
+                      "name": "week_start",
+                      "expression": "`week_start`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_daily_date",
+                "query": {
+                  "datasetName": "ds_oee_daily",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_events_date",
+                "query": {
+                  "datasetName": "ds_oee_events",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_cumulative_costs_date",
+                "query": {
+                  "datasetName": "ds_cumulative_costs",
+                  "fields": [
+                    {
+                      "name": "date",
+                      "expression": "`date`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "date",
+                    "displayName": "Date",
+                    "queryName": "ds_blend_daily_date"
+                  },
+                  {
+                    "fieldName": "week_start",
+                    "displayName": "Week Start",
+                    "queryName": "ds_quality_weekly_week_start"
+                  },
+                  {
+                    "fieldName": "date",
+                    "displayName": "Date",
+                    "queryName": "ds_oee_daily_date"
+                  },
+                  {
+                    "fieldName": "date",
+                    "displayName": "Date",
+                    "queryName": "ds_oee_events_date"
+                  },
+                  {
+                    "fieldName": "date",
+                    "displayName": "Date",
+                    "queryName": "ds_cumulative_costs_date"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Filter: Date Range"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_region",
+            "queries": [
+              {
+                "name": "ds_blend_daily_region",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_quality_weekly_region",
+                "query": {
+                  "datasetName": "ds_quality_weekly",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_daily_region",
+                "query": {
+                  "datasetName": "ds_oee_daily",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_events_region",
+                "query": {
+                  "datasetName": "ds_oee_events",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_cumulative_costs_region",
+                "query": {
+                  "datasetName": "ds_cumulative_costs",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_scenarios_region",
+                "query": {
+                  "datasetName": "ds_scenarios",
+                  "fields": [
+                    {
+                      "name": "region",
+                      "expression": "`region`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_blend_daily_region"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_quality_weekly_region"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_oee_daily_region"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_oee_events_region"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_cumulative_costs_region"
+                  },
+                  {
+                    "fieldName": "region",
+                    "displayName": "Region",
+                    "queryName": "ds_scenarios_region"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Filter: Region"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_plant_id",
+            "queries": [
+              {
+                "name": "ds_blend_daily_plant_id",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "plant_id",
+                      "expression": "`plant_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_quality_weekly_plant_id",
+                "query": {
+                  "datasetName": "ds_quality_weekly",
+                  "fields": [
+                    {
+                      "name": "plant_id",
+                      "expression": "`plant_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_daily_plant_id",
+                "query": {
+                  "datasetName": "ds_oee_daily",
+                  "fields": [
+                    {
+                      "name": "plant_id",
+                      "expression": "`plant_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_events_plant_id",
+                "query": {
+                  "datasetName": "ds_oee_events",
+                  "fields": [
+                    {
+                      "name": "plant_id",
+                      "expression": "`plant_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_scenarios_plant_id",
+                "query": {
+                  "datasetName": "ds_scenarios",
+                  "fields": [
+                    {
+                      "name": "plant_id",
+                      "expression": "`plant_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-single-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "plant_id",
+                    "displayName": "Plant ID",
+                    "queryName": "ds_blend_daily_plant_id",
+                    "dataType": "INTEGER"
+                  },
+                  {
+                    "fieldName": "plant_id",
+                    "displayName": "Plant ID",
+                    "queryName": "ds_quality_weekly_plant_id",
+                    "dataType": "INTEGER"
+                  },
+                  {
+                    "fieldName": "plant_id",
+                    "displayName": "Plant ID",
+                    "queryName": "ds_oee_daily_plant_id",
+                    "dataType": "INTEGER"
+                  },
+                  {
+                    "fieldName": "plant_id",
+                    "displayName": "Plant ID",
+                    "queryName": "ds_oee_events_plant_id",
+                    "dataType": "INTEGER"
+                  },
+                  {
+                    "fieldName": "plant_id",
+                    "displayName": "Plant ID",
+                    "queryName": "ds_scenarios_plant_id",
+                    "dataType": "INTEGER"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Filter: Plant ID"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_line_id",
+            "queries": [
+              {
+                "name": "ds_blend_daily_line_id",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "line_id",
+                      "expression": "`line_id`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_daily_line_id",
+                "query": {
+                  "datasetName": "ds_oee_daily",
+                  "fields": [
+                    {
+                      "name": "plant_line",
+                      "expression": "`plant_line`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_oee_events_line_id",
+                "query": {
+                  "datasetName": "ds_oee_events",
+                  "fields": [
+                    {
+                      "name": "plant_line",
+                      "expression": "`plant_line`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "ds_scenarios_line_id",
+                "query": {
+                  "datasetName": "ds_scenarios",
+                  "fields": [
+                    {
+                      "name": "plant_line",
+                      "expression": "`plant_line`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "line_id",
+                    "displayName": "Line ID",
+                    "queryName": "ds_blend_daily_line_id"
+                  },
+                  {
+                    "fieldName": "plant_line",
+                    "displayName": "Line",
+                    "queryName": "ds_oee_daily_line_id"
+                  },
+                  {
+                    "fieldName": "plant_line",
+                    "displayName": "Line",
+                    "queryName": "ds_oee_events_line_id"
+                  },
+                  {
+                    "fieldName": "plant_line",
+                    "displayName": "Line",
+                    "queryName": "ds_scenarios_line_id"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Filter: Line"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 6,
+            "width": 2,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_sku",
+            "queries": [
+              {
+                "name": "ds_blend_daily_sku",
+                "query": {
+                  "datasetName": "ds_blend_daily",
+                  "fields": [
+                    {
+                      "name": "product_name",
+                      "expression": "`product_name`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "product_name",
+                    "displayName": "SKU",
+                    "queryName": "ds_blend_daily_sku"
+                  }
+                ]
+              },
+              "frame": {
+                "showTitle": true,
+                "title": "Filter: SKU"
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 8,
+            "width": 2,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    }
+  }
+}

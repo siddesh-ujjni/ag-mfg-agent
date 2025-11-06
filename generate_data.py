@@ -1,570 +1,563 @@
-# generate_data.py for McCain demo raw layer (full regeneration per updated story and schemas)
-# ASCII only
-from utils import save_to_parquet
+# McCain Foods Manufacturing Optimization Demo - RAW Synthetic Data Generator
+# Generates five raw tables per demo_story.json with realistic patterns and event windows.
+# Contract: exact schemas, naive timestamps floored to ms, coherent cross-table references.
+
+import random
+import string
+
 import numpy as np
 import pandas as pd
-import random
 from faker import Faker
-from holidays import UnitedStates, Canada
+
+from utils import save_to_parquet
 
 # Set environment variables for Databricks Volumes
 import os
-os.environ['CATALOG'] = 'brlui'
-os.environ['SCHEMA'] = 'brian_lui_mccain'
+os.environ['CATALOG'] = 'demo_generator'
+os.environ['SCHEMA'] = 'brian_lui_mccain_ebc'
 os.environ['VOLUME'] = 'raw_data'
 
 
 
-np.random.seed(42)
-random.seed(42)
+# ===============================
+# === REPRO & GLOBAL WINDOWS ====
+# ===============================
+SEED = 42
+np.random.seed(SEED)
+random.seed(SEED)
 fake = Faker()
+Faker.seed(SEED)
 
-# Global time ranges (tz-naive, ms precision)
-DATE_START = pd.Timestamp('2025-05-01').floor('ms')
-DATE_END   = pd.Timestamp('2025-10-15 23:59:59').floor('ms')
-EVENT_START = pd.Timestamp('2025-09-08').floor('ms')
-EVENT_END   = pd.Timestamp('2025-09-15').floor('ms')
-EVENT_SPIKE_START = pd.Timestamp('2025-09-09').floor('ms')
-EVENT_SPIKE_END   = pd.Timestamp('2025-09-13').floor('ms')
+# All globals are tz-naive and floored/normalized as needed (no tz conversions elsewhere)
+RANGE_START = pd.Timestamp('2025-07-10').floor('ms')
+RANGE_END = pd.Timestamp('2025-10-31').floor('ms')
+EVENT_START = pd.Timestamp('2025-08-18').floor('ms')
+EVENT_END = pd.Timestamp('2025-09-12').floor('ms')
+S7_TRANCHE_START = pd.Timestamp('2025-08-17').floor('ms')
 
-# Domains
+DAYS = pd.date_range(RANGE_START.normalize(), RANGE_END.normalize(), freq='D')
+DAYS = pd.to_datetime(DAYS, utc=False).tz_localize(None)
+
+# Plants and lines (referential integrity across tables)
 PLANTS = [
-    ('idaho', 'Idaho Burley Plant'),
-    ('wi', 'Wisconsin Plover Plant'),
-    ('on', 'Ontario Florenceville Plant')
+    {'plant_id': 1, 'plant_name': 'NA-ID-P01', 'region': 'NA'},
+    {'plant_id': 2, 'plant_name': 'NA-ME-P02', 'region': 'NA'},
+    {'plant_id': 3, 'plant_name': 'EU-NL-P03', 'region': 'EU'},
+    {'plant_id': 4, 'plant_name': 'EU-BE-P04', 'region': 'EU'},
 ]
-LINES  = ['l1','l2','l3']
-VARIETIES = ['russet burbank','russet norkotah','shepody','innovator','ranger']
-CORE_SKUS = [
-    ('sku-ff-38-skinon','Skin-On Fries 3/8','3/8'),
-    ('sku-ff-716','Standard Fries 7/16','7/16'),
-    ('sku-wedges-prem','Premium Wedges','wedges'),
-    ('sku-hashbrown','Hashbrown Patties','hashbrown'),
-    ('sku-ff-crinkle','Crinkle Cut Fries','3/8'),
-    ('sku-waffle','Waffle Fries','3/8'),
+# Lines per plant (ensure L2 at EU-NL-P03 and L3 at NA-ID-P01 exist)
+LINES_PER_PLANT = {
+    'NA-ID-P01': ['L1', 'L2', 'L3', 'L4'],
+    'NA-ME-P02': ['L1', 'L2', 'L3'],
+    'EU-NL-P03': ['L1', 'L2', 'L3', 'L4', 'L5'],
+    'EU-BE-P04': ['L1', 'L2', 'L3', 'L4'],
+}
+# SKUs and numeric product_ids
+PRODUCTS = [
+    {'product_id': 9009, 'product_name': 'SC-9mm'},
+    {'product_id': 1313, 'product_name': 'CC-13mm'},
+    {'product_id': 2525, 'product_name': 'WG-25mm'},
 ]
-CORE_SKU_IDS = [s[0] for s in CORE_SKUS]
+VARIETIES = ['Russet', 'Innovator', 'Shepody', 'Bintje']
 
-US_HOLIDAYS = UnitedStates(years=[2025])
-CA_HOLIDAYS = Canada(years=[2025])
+# Helper to choose with normalized probabilities
+def _choose(values, probs, size):
+    p = np.array(probs, dtype=float)
+    p = p / p.sum()
+    return np.random.choice(values, size=size, p=p)
 
-# Helper functions
+# ===============================
+# === 1) PRODUCT SPECIFICATIONS PSS (RAW)
+# ===============================
+# Schema columns:
+# plant_id (int), plant_name (string), plant_line (string), product_id (bigint), product_name (string),
+# average_length_grading_mm_min (int), average_length_grading_mm_target (int), average_length_grading_mm_max (int),
+# pct_min_50mm_length (double), pct_min_75mm_length (double),
+# max_usda_color_0..4 (int), max_defect_points (int), min_dry_matter_pct (double), max_dry_matter_pct (double),
+# approved_potato_varieties (array<string>)
 
-def _hour_probs():
-    # 6..22 hour window (17 hours)
-    base = np.array([0.01,0.02,0.04,0.06,0.08,0.10,0.12,0.12,0.10,0.09,0.08,0.07,0.05,0.03,0.02,0.01,0.00])
-    base = np.clip(base, 0.0001, None)
-    return base / base.sum()
+def generate_raw_product_specifications_pss() -> pd.DataFrame:
+    print('Generating raw_product_specifications_pss...')
+    rows = []
+    # Targets by SKU
+    sku_targets = {
+        'SC-9mm': {'avg_len': (55, 60, 65), 'dm_target': 21.8, 'tol': 0.3},
+        'CC-13mm': {'avg_len': (65, 70, 80), 'dm_target': 22.5, 'tol': 0.3},
+        'WG-25mm': {'avg_len': (75, 80, 85), 'dm_target': 21.9, 'tol': 0.3},
+    }
+    # USDA color caps (counts per sampling window ~ hour)
+    color_caps = {
+        'SC-9mm': (350, 1800, 900, 200, 30),
+        'CC-13mm': (300, 1700, 1000, 250, 40),
+        'WG-25mm': (380, 1600, 950, 240, 35),
+    }
+    # Defect points caps
+    defect_caps = {'SC-9mm': 2400, 'CC-13mm': 2600, 'WG-25mm': 2500}
 
-
-def random_business_hour(size):
-    hours = np.random.choice(np.arange(6,23), size=size, p=_hour_probs())
-    minutes = np.random.randint(0,60,size)
-    return hours, minutes
-
-
-def weekday_weight(d: pd.Timestamp):
-    wd = pd.Timestamp(d).weekday()
-    if wd in (1,2,3):
-        return 1.2
-    elif wd in (5,6):
-        return 0.6
-    elif wd == 0:
-        return 0.9
-    else:
-        return 1.0
-
-
-def holiday_modifier(d: pd.Timestamp, plant_id: str):
-    if plant_id == 'on':
-        return 0.85 if pd.Timestamp(d).date() in CA_HOLIDAYS else 1.0
-    else:
-        return 0.9 if pd.Timestamp(d).date() in US_HOLIDAYS else 1.0
-
-
-def generate_suppliers():
-    sup_ids = [f"sup-g{i}" for i in range(18,76)]
-    weights = np.random.rand(len(sup_ids)) ** 2
-    weights = weights / weights.sum()
-    return sup_ids, weights
-
-SUPPLIERS, SUP_WEIGHTS = generate_suppliers()
-
-
-def supplier_region(sup: str) -> str:
-    idx = int(sup.split('-g')[-1])
-    if idx <= 27:
-        return 'se'
-    elif idx <= 36:
-        return 'sw'
-    elif idx <= 50:
-        return 'nw'
-    elif idx <= 63:
-        return 'ne'
-    else:
-        return 'central'
-
-
-def variety_prob_by_plant(plant_id: str):
-    if plant_id == 'idaho':
-        probs = {'russet burbank':0.45,'russet norkotah':0.30,'shepody':0.10,'innovator':0.08,'ranger':0.07}
-    elif plant_id == 'wi':
-        probs = {'russet burbank':0.35,'russet norkotah':0.25,'shepody':0.20,'innovator':0.10,'ranger':0.10}
-    else:
-        probs = {'russet burbank':0.40,'russet norkotah':0.20,'shepody':0.15,'innovator':0.15,'ranger':0.10}
-    # ensure probs sum to 1
-    vals = np.array(list(probs.values()), dtype=float)
-    probs = {k: float(v)/float(vals.sum()) for k,v in probs.items()}
-    return probs
-
-
-def choose_line_and_sku(plant_id: str):
-    if plant_id == 'idaho':
-        line = np.random.choice(LINES, p=np.array([0.35,0.45,0.20]))
-    else:
-        line = np.random.choice(LINES, p=np.array([0.40,0.30,0.30]))
-    if line == 'l2' and plant_id == 'idaho':
-        sku = 'sku-ff-38-skinon'
-    else:
-        sku = np.random.choice(CORE_SKU_IDS)
-    return line, sku
-
-
-def color_bin_probs(dry_solids: float, defects: float, is_event: bool=False):
-    # returns probs for 0..4 bins (USDA A..E)
-    pA, pB, pC, pD, pE = 0.45, 0.35, 0.15, 0.04, 0.01
-    if dry_solids < 19.5:
-        pA -= 0.12; pB += 0.05; pC += 0.05; pD += 0.02
-    if defects > 1.2:
-        pA -= 0.08; pB += 0.03; pC += 0.03; pD += 0.02
-    if is_event:
-        pA -= 0.05; pB += 0.02; pC += 0.02; pD += 0.01
-    ps = np.array([pA,pB,pC,pD,pE], dtype=float)
-    ps = np.clip(ps, 0.001, None)
-    ps = ps/ps.sum()
-    return ps
-
-
-# -----------------------------
-# raw_potato_load_quality
-# -----------------------------
-def generate_raw_potato_load_quality(row_target: int = 286745) -> pd.DataFrame:
-    print(f"Generating raw_potato_load_quality: {row_target:,} rows...")
-    dates = pd.date_range(DATE_START, DATE_END, freq='D').to_pydatetime()
-    plant_day_counts = {}
-    for plant_id, plant_name in PLANTS:
-        plant_day_counts[plant_id] = []
-        for d in dates:
-            ts_d = pd.Timestamp(d)
-            base = 180 if plant_id=='idaho' else (140 if plant_id=='wi' else 120)
-            m = weekday_weight(ts_d) * holiday_modifier(ts_d, plant_id)
-            season_factor = 1.0 + (0.18 if ts_d.month in (7,8,9) else (0.0 if ts_d.month in (5,6) else -0.05))
-            count = int(base * m * season_factor)
-            plant_day_counts[plant_id].append(count)
-    total_est = sum([sum(v) for v in plant_day_counts.values()])
-    scale = row_target / total_est
-    for plant_id, _ in PLANTS:
-        plant_day_counts[plant_id] = [max(25,int(c*scale)) for c in plant_day_counts[plant_id]]
-
-    vprob_map = {pid: variety_prob_by_plant(pid) for pid, _ in PLANTS}
-    records = []
-    progress_interval = max(1, len(dates)//10)
-    load_seq = 0
-    for di, d in enumerate(dates):
-        ts_d = pd.Timestamp(d)
-        if (di + 1) % progress_interval == 0 or di == 0:
-            progress = ((di + 1) / len(dates)) * 100
-            print(f"  Days processed: {progress:.0f}% ({di + 1:,}/{len(dates):,})")
-        for plant_id, plant_name in PLANTS:
-            day_count = plant_day_counts[plant_id][di]
-            hours, minutes = random_business_hour(day_count)
-            seconds = np.random.randint(0,60,day_count)
-            hhmmss = hours*10000 + minutes*100 + seconds
-            deltas = pd.to_timedelta(hours, unit='h') + pd.to_timedelta(minutes, unit='m') + pd.to_timedelta(seconds, unit='s')
-            times = (ts_d + deltas).floor('ms')
-            sups = np.random.choice(SUPPLIERS, size=day_count, p=SUP_WEIGHTS)
-            sup_idx = np.char.partition(sups, '-g')[:,2].astype(int)
-            regions = np.select([sup_idx <= 27, sup_idx <= 36, sup_idx <= 50, sup_idx <= 63], ['se','sw','nw','ne'], default='central')
-            vprobs = vprob_map[plant_id]
-            varieties = np.random.choice(list(vprobs.keys()), size=day_count, p=np.array(list(vprobs.values())))
-            varietylabel = np.where(varieties=='russet burbank','Russet Burbank',
-                                    np.where(varieties=='russet norkotah','Russet Norkotah',
-                                             np.where(varieties=='shepody','Shepody',
-                                                      np.where(varieties=='innovator','Innovator','Ranger'))))
-            gross_weight_kg = np.random.lognormal(mean=10.1, sigma=0.15, size=day_count)
-            gross_weight_kg = np.clip(gross_weight_kg, 20000, 32000)
-            netweightonload = gross_weight_kg - np.random.uniform(1200, 1800, size=day_count)
-            netweightonload = np.clip(netweightonload, 18500, 30500)
-            base_len = np.random.normal(100, 12, size=day_count)
-            base_len += np.where(varieties=='russet burbank', 5, 0)
-            base_len += np.where(varieties=='russet norkotah', -3, 0)
-            line_sku = np.fromiter((choose_line_and_sku(plant_id) for _ in range(day_count)), dtype=object, count=day_count)
-            lines = np.array([ls[0] for ls in line_sku], dtype=object)
-            skus = np.array([ls[1] for ls in line_sku], dtype=object)
-            seasonal_offset = 0.6 if ts_d.month in (8,9,10) else (0.0 if ts_d.month in (5,6) else 0.3)
-            dry_solids = np.random.normal(20.2 + seasonal_offset, 1.0, size=day_count)
-            defects = np.clip(np.random.normal(0.95, 0.35, size=day_count), 0.0, 5.0)
-            # Event impact: Idaho plant, SE region, Norkotah arrivals concentrated 9/8..9/10
-            if (plant_id=='idaho') and (ts_d >= EVENT_START) and (ts_d <= pd.Timestamp('2025-09-10')):
-                se_mask = regions=='se'
-                rn_mask = varieties=='russet norkotah'
-                impacted = se_mask & rn_mask
-                if impacted.any():
-                    dry_solids[impacted] = np.random.uniform(17.8, 18.9, size=impacted.sum())
-                    defects[impacted] = np.clip(defects[impacted] * np.random.uniform(1.12, 1.18, size=impacted.sum()), 0.0, 5.0)
-                    idx_imp = np.where(impacted)[0]
-                    if idx_imp.size:
-                        lines[idx_imp] = 'l2'
-                        skus[idx_imp] = 'sku-ff-38-skinon'
-            # Over-quality: Burbank routed to L1 during event window (richer dry solids)
-            if (plant_id=='idaho') and (ts_d >= EVENT_START) and (ts_d <= EVENT_END):
-                rb_mask = (varieties=='russet burbank') & (np.array(lines)=='l1')
-                if rb_mask.any():
-                    dry_solids[rb_mask] = dry_solids[rb_mask] + np.random.uniform(0.5, 1.5, size=rb_mask.sum())
-            usda_color = np.empty(day_count, dtype=object)
-            # vectorized-ish: precompute event mask and probabilities for indices, then sample
-            event_mask = (plant_id=='idaho') & (times >= EVENT_SPIKE_START) & (times <= EVENT_SPIKE_END)
-            idxs = np.arange(day_count)
-            for i in idxs:
-                ps = color_bin_probs(dry_solids[i], defects[i], is_event=bool(event_mask[i]))
-                usda_color[i] = np.random.choice(['a','b','c','d'], p=ps[:4]/ps[:4].sum())
-            storage_bin_id = np.array([f"BIN-{random.randint(1,40):03d}" for _ in range(day_count)], dtype=object)
-            # ~0.1% nulls in storage_bin_id
-            if day_count > 0:
-                null_ct = max(1, day_count//1000)
-                if null_ct > 0:
-                    null_idx = np.random.choice(np.arange(day_count), size=null_ct, replace=False)
-                    storage_bin_id[null_idx] = None
-            attributecode = np.random.choice(['DRY_SOLIDS','DEFECT_POINTS','AVERAGE_LENGTH','USDA_COLOR'], size=day_count, p=np.array([0.35,0.25,0.25,0.15]))
-            sampleattributelabel = np.where(attributecode=='DRY_SOLIDS','Min_Dry_Matter_Pct',
-                                     np.where(attributecode=='DEFECT_POINTS','Max_Defect_Points',
-                                              np.where(attributecode=='AVERAGE_LENGTH','Average_Length_Grading_Min','Max_USDA_Color_2')))
-            attributevalue = np.where(attributecode=='DRY_SOLIDS', dry_solids,
-                                       np.where(attributecode=='DEFECT_POINTS', defects,
-                                                np.where(attributecode=='AVERAGE_LENGTH', base_len, np.where(usda_color=='a',0,np.where(usda_color=='b',1,np.where(usda_color=='c',2,3))))))
-            loadnumbers = np.array([f"TRK-{random.randint(80000,99999)}" for _ in range(day_count)], dtype=object)
-            for i in range(day_count):
-                load_seq += 1
-                load_id = f"ld-{pd.Timestamp(d).strftime('%Y%m%d')}-{int(times[i].strftime('%H%M%S')):06d}-{load_seq:05d}"
-                records.append({
-                    'load_id': load_id,
-                    'plant_id': plant_id,
-                    'plant_name': plant_name,
-                    'delivery_time': times[i],
-                    'supplier_id': sups[i],
-                    'field_region': regions[i],
-                    'variety': varieties[i],
-                    'varietylabel': varietylabel[i],
-                    'loadnumber': loadnumbers[i],
-                    'gross_weight_kg': float(gross_weight_kg[i]),
-                    'netweightonload': float(netweightonload[i]),
-                    'avg_length_mm': float(np.clip(base_len[i] + np.random.normal(0,3), 70, 140)),
-                    'usda_color': usda_color[i],
-                    'defect_points': float(defects[i]),
-                    'dry_solids_pct': float(np.clip(dry_solids[i], 16.5, 24.0)),
-                    'attributecode': attributecode[i],
-                    'sampleattributelabel': sampleattributelabel[i],
-                    'attributevalue': float(attributevalue[i]),
-                    'intended_line_id': lines[i],
-                    'intended_sku_id': skus[i],
-                    'storage_bin_id': storage_bin_id[i]
-                })
-    df = pd.DataFrame.from_records(records)
-    # Normalize datetime
-    df['delivery_time'] = pd.to_datetime(df['delivery_time'], utc=True, errors='coerce').dt.tz_convert(None).dt.floor('ms')
-    # Enforce dtypes
-    float_cols = ['gross_weight_kg','netweightonload','avg_length_mm','defect_points','dry_solids_pct','attributevalue']
-    for c in float_cols:
-        df[c] = df[c].astype(float)
-    return df
-
-
-# -----------------------------
-# raw_product_specifications_pss
-# -----------------------------
-def generate_raw_product_specifications_pss(row_target: int = 1347) -> pd.DataFrame:
-    print("Generating raw_product_specifications_pss...")
-    vprob_map = {pid: variety_prob_by_plant(pid) for pid, _ in PLANTS}
-    records = []
-    for plant_id, _ in PLANTS:
-        for sku_id, sku_name, cut in CORE_SKUS:
-            if sku_id == 'sku-ff-38-skinon':
-                min_len, tgt_len, max_len = 85, 105, 130
-                max_def = 1.5
-                min_ds, max_ds = 20.0, 23.5
-                max_color = [60, 35, 10, 5, 0]
-                allowed = ['russet burbank','russet norkotah']
-            else:
-                base_min = 80 if cut in ('3/8','7/16') else (95 if cut=='wedges' else 70)
-                base_tgt = base_min + 20
-                base_max = base_min + 45
-                min_len, tgt_len, max_len = base_min, base_tgt, base_max
-                max_def = float(np.round(np.random.uniform(1.2, 1.8),2))
-                min_ds = float(np.round(np.random.uniform(19.0, 21.0),1))
-                max_ds = float(np.round(min_ds + np.random.uniform(2.5, 4.5),1))
-                max_color = list(np.random.randint(0, 80, size=5))
-                max_color[0] = max(20, max_color[0])
-                max_color[3] = min(10, max_color[3])
-                max_color[4] = min(2, max_color[4])
-                allowed = list(np.random.choice(VARIETIES, size=np.random.choice([2,3], p=np.array([0.6,0.4])), replace=False))
-            records.append({
-                'plantid': plant_id,
-                'productid': sku_id,
-                'average_length_grading_min': float(min_len),
-                'average_length_grading_target': float(tgt_len),
-                'average_length_grading_max': float(max_len),
-                'pct_min_50mm_length': float(np.round(np.random.uniform(85, 98),1)),
-                'pct_min_75mm_length': float(np.round(np.random.uniform(70, 90),1)),
-                'max_usda_color_0': float(max_color[0]),
-                'max_usda_color_1': float(max_color[1]),
-                'max_usda_color_2': float(max_color[2]),
-                'max_usda_color_3': float(max_color[3]),
-                'max_usda_color_4': float(max_color[4]),
-                'max_defect_points': float(max_def),
-                'min_dry_matter_pct': float(min_ds),
-                'max_dry_matter_pct': float(max_ds),
-                'approved_potato_varieties': allowed
-            })
-    i = 1
-    while len(records) < row_target:
-        plant_id = np.random.choice([p[0] for p in PLANTS], p=np.array([0.45,0.30,0.25]))
-        cut = np.random.choice(['3/8','7/16','wedges','hashbrown'], p=np.array([0.45,0.25,0.20,0.10]))
-        base_min = 80 if cut in ('3/8','7/16') else (95 if cut=='wedges' else 70)
-        min_len = base_min + np.random.randint(-2, 3)
-        tgt_len = min_len + np.random.randint(18, 24)
-        max_len = tgt_len + np.random.randint(20, 28)
-        max_def = float(np.round(np.random.uniform(1.2, 1.9),2))
-        min_ds = float(np.round(np.random.uniform(18.5, 21.5),1))
-        max_ds = float(np.round(min_ds + np.random.uniform(2.5, 4.0),1))
-        max_color = [int(x) for x in np.clip(np.random.normal([60,30,8,3,1], [8,6,4,2,1]), 0, 90)]
-        allowed_vars = list(np.random.choice(VARIETIES, size=np.random.choice([2,3], p=np.array([0.65,0.35])), replace=False))
-        sku_id = f"sku-auto-{cut.replace('/','')}-{i:04d}"
-        records.append({
-            'plantid': plant_id,
-            'productid': sku_id,
-            'average_length_grading_min': float(min_len),
-            'average_length_grading_target': float(tgt_len),
-            'average_length_grading_max': float(max_len),
-            'pct_min_50mm_length': float(np.round(np.random.uniform(85, 98),1)),
-            'pct_min_75mm_length': float(np.round(np.random.uniform(70, 90),1)),
-            'max_usda_color_0': float(max_color[0]),
-            'max_usda_color_1': float(max_color[1]),
-            'max_usda_color_2': float(max_color[2]),
-            'max_usda_color_3': float(max_color[3]),
-            'max_usda_color_4': float(max_color[4]),
-            'max_defect_points': float(max_def),
-            'min_dry_matter_pct': float(min_ds),
-            'max_dry_matter_pct': float(max_ds),
-            'approved_potato_varieties': allowed_vars
-        })
-        i += 1
-    df = pd.DataFrame(records)
-    return df
-
-
-# -----------------------------
-# raw_line_quality_events_osipi
-# -----------------------------
-def generate_raw_line_quality_events_osipi(row_target: int = 412385) -> pd.DataFrame:
-    print(f"Generating raw_line_quality_events_osipi: target {row_target:,} rows...")
-    dates = pd.date_range(DATE_START, DATE_END, freq='D')
-    vprob_map = {pid: variety_prob_by_plant(pid) for pid, _ in PLANTS}
-    records = []
-    events_per_day_base = int(max(600, row_target / max(1,len(dates)) / len(PLANTS)))
-    progress_interval = max(1, len(dates)//10)
-    for di, day in enumerate(dates):
-        d_ts = pd.Timestamp(day)
-        if (di + 1) % progress_interval == 0 or di == 0:
-            progress = ((di + 1) / len(dates)) * 100
-            print(f"  OSIPI days: {progress:.0f}% ({di + 1:,}/{len(dates):,})")
-        for plant_id, _ in PLANTS:
-            vol = int(events_per_day_base * weekday_weight(d_ts) * holiday_modifier(d_ts, plant_id))
-            if vol <= 0:
-                continue
-            # pick product mix, tilt to skin-on on Idaho
-            product_mix = np.array([0.35,0.20,0.15,0.10,0.10,0.10]) if plant_id=='idaho' else np.array([0.25,0.25,0.15,0.15,0.10,0.10])
-            product_mix = product_mix / product_mix.sum()
-            productid = np.random.choice(CORE_SKU_IDS, size=vol, p=product_mix)
-            var_probs = variety_prob_by_plant(plant_id)
-            variety = np.random.choice(list(var_probs.keys()), size=vol, p=np.array(list(var_probs.values())))
-            # business minutes during day
-            minutes = np.random.choice(np.arange(7*60, 22*60), size=vol, replace=True)
-            avg_len = np.zeros(vol)
-            ds_pct = np.zeros(vol)
-            defects = np.zeros(vol)
-            color_counts = np.zeros((vol,5), dtype=int)
-            for i in range(vol):
-                cut = '3/8' if productid[i] in ('sku-ff-38-skinon','sku-ff-crinkle','sku-waffle') else ('7/16' if productid[i]=='sku-ff-716' else ('wedges' if productid[i]=='sku-wedges-prem' else 'hashbrown'))
-                base_len = 100 if cut in ('3/8','7/16') else (115 if cut=='wedges' else 95)
-                avg_len[i] = float(np.clip(np.random.normal(base_len, 6), 70, 150))
-                seasonal_offset = 0.6 if d_ts.month in (8,9,10) else (0.0 if d_ts.month in (5,6) else 0.3)
-                ds_pct[i] = float(np.clip(np.random.normal(20.2 + seasonal_offset, 0.8), 16.5, 24.0))
-                defects[i] = float(np.clip(np.random.normal(0.95, 0.35), 0.0, 5.0))
-                is_event = (plant_id=='idaho') and (EVENT_SPIKE_START <= (d_ts + pd.Timedelta(minutes=int(minutes[i]))) <= EVENT_SPIKE_END) and (productid[i]=='sku-ff-38-skinon')
-                if is_event:
-                    ds_pct[i] = float(max(16.5, ds_pct[i] - np.random.uniform(0.8, 1.2)))
-                    defects[i] = float(np.clip(defects[i] * np.random.uniform(1.15,1.35), 0.0, 5.0))
-                ps = color_bin_probs(ds_pct[i], defects[i], is_event=is_event)
-                sample_count = int(np.clip(np.random.normal(2500, 900), 200, 10000))
-                counts = np.random.multinomial(sample_count, ps)
-                color_counts[i,:] = counts
-            dt = (d_ts + pd.to_timedelta(minutes, unit='m')).floor('ms')
-            for i in range(vol):
-                records.append({
-                    'datetime': dt[i],
-                    'plantid': plant_id,
-                    'productid': productid[i],
-                    'variety': variety[i].replace(' ', '_'),
-                    'average_length_ml': avg_len[i],
-                    'usda_color_0': int(color_counts[i,0]),
-                    'usda_color_1': int(color_counts[i,1]),
-                    'usda_color_2': int(color_counts[i,2]),
-                    'usda_color_3': int(color_counts[i,3]),
-                    'usda_color_4': int(color_counts[i,4]),
-                    'total_defect_points': defects[i],
-                    'dry_solids_pct': ds_pct[i]
-                })
-    df = pd.DataFrame(records)
-    # Normalize datetime
-    df['datetime'] = pd.to_datetime(df['datetime'], utc=True, errors='coerce').dt.tz_convert(None).dt.floor('ms')
-    # Enforce dtypes
-    int_cols = ['usda_color_0','usda_color_1','usda_color_2','usda_color_3','usda_color_4']
-    for c in int_cols:
-        df[c] = df[c].astype(int)
-    float_cols = ['average_length_ml','total_defect_points','dry_solids_pct']
-    for c in float_cols:
-        df[c] = df[c].astype(float)
-    return df
-
-
-# -----------------------------
-# raw_oee_equipment_events
-# -----------------------------
-def generate_raw_oee_equipment_events(row_target: int = 167432) -> pd.DataFrame:
-    print(f"Generating raw_oee_equipment_events: {row_target:,} rows...")
-    vprob_map = {pid: variety_prob_by_plant(pid) for pid, _ in PLANTS}
-    records = []
-    days = pd.date_range(DATE_START, DATE_END, freq='D')
-    progress_interval = max(1, len(days)//10)
-    base_events = max(5, int(row_target / (len(days) * len(PLANTS) * len(LINES))))
-    for i, day in enumerate(days):
-        if (i + 1) % progress_interval == 0 or i == 0:
-            progress = ((i + 1) / len(days)) * 100
-            print(f"  OEE days: {progress:.0f}% ({i + 1:,}/{len(days):,})")
-        for plant_id, plant_name in PLANTS:
-            for line in LINES:
-                n_events = int(base_events * weekday_weight(day) * holiday_modifier(day, plant_id))
-                if n_events < 3:
-                    n_events = 3
-                starts = np.sort(np.random.choice(np.arange(7*60, 23*60), size=n_events, replace=False))
-                for st in starts:
-                    start_ts = (pd.Timestamp(day) + pd.Timedelta(minutes=int(st))).floor('ms')
-                    duration = int(np.clip(np.random.normal(45, 20), 10, 180))
-                    end_ts = (start_ts + pd.Timedelta(minutes=duration)).floor('ms')
-                    is_event_window = (plant_id=='idaho') and (line=='l2') and (start_ts>=EVENT_SPIKE_START) and (start_ts<=EVENT_SPIKE_END)
-                    primary = np.random.choice(['QLT-LOW-DRY-SOLIDS','EQP-BLADE-DULL','PROC-OIL-TEMP','SCHED-CHANGEOVER','MAINT-PLANNED'], p=np.array([0.20,0.22,0.18,0.20,0.20]))
-                    secondary = np.random.choice(['eqp-cutr-bld-021','oil-temp-alm-118','frzr-def-045','sched-cov-009','maint-lub-002'])
-                    cat1 = np.random.choice(['mechanical','operational'], p=np.array([0.55,0.45]))
-                    cat2 = np.random.choice(['performance','quality','availability'])
-                    product = np.random.choice(CORE_SKU_IDS, p=np.array([0.35,0.20,0.15,0.10,0.10,0.10])) if plant_id=='idaho' else np.random.choice(CORE_SKU_IDS)
-                    plant_line = f"{plant_name}-{line}"
-                    plant_line_product = f"{plant_line}{product}"
-                    workshift = np.random.choice(['A','B','C'], p=np.array([0.45,0.35,0.20]))
-                    start_hour = int(pd.Timestamp(start_ts).hour)
-                    end_hour = int(pd.Timestamp(end_ts).hour)
-                    downtime_dur = int(np.clip(duration * np.random.uniform(0.05, 0.65), 0, duration))
-                    qty_packed = float(np.clip(np.random.normal(1800, 650), 500, 5800))
-                    num_totes = float(np.clip(np.random.normal(24, 8), 5, 60))
-                    if is_event_window:
-                        qty_packed *= np.random.uniform(0.92, 0.95)
-                        downtime_dur = int(downtime_dur * np.random.uniform(1.1, 1.5))
-                        primary = np.random.choice(['QLT-LOW-DRY-SOLIDS','PROC-OIL-TEMP'])
-                    records.append({
-                        'time_id': pd.Timestamp(day).floor('ms').date(),
-                        'plant_id': plant_id,
-                        'line_cd': line,
+    for plant in PLANTS:
+        plant_name = plant['plant_name']
+        for line in LINES_PER_PLANT[plant_name]:
+            for prod in PRODUCTS:
+                pname = prod['product_name']
+                pid = int(prod['product_id'])
+                avg_min, avg_tgt, avg_max = sku_targets[pname]['avg_len']
+                dm_tgt = sku_targets[pname]['dm_target']
+                tol = sku_targets[pname]['tol']
+                min_dm = round(dm_tgt - tol, 2)
+                max_dm = round(dm_tgt + tol, 2)
+                c0, c1, c2, c3, c4 = color_caps[pname]
+                rows.append(
+                    {
+                        'plant_id': int(plant['plant_id']),
                         'plant_name': plant_name,
-                        'plant_line': plant_line,
-                        'primary_reason_cd': primary,
-                        'secondary_reason_cd': secondary,
-                        'downtime_cat_1': cat1,
-                        'downtime_cat_2': cat2,
-                        'product': product,
-                        'plant_line_product': plant_line_product,
-                        'workshift': workshift,
-                        'start_time': start_ts.strftime('%Y-%m-%d %H:%M:%S'),
-                        'start_hour': int(start_hour),
-                        'end_time': end_ts.strftime('%Y-%m-%d %H:%M:%S'),
-                        'end_hour': int(end_hour),
-                        'duration': int(duration),
-                        'downtime_duration': int(downtime_dur),
-                        'qty_packed': float(qty_packed),
-                        'num_totes_on': float(num_totes)
-                    })
-    df = pd.DataFrame(records)
-    # Normalize time_id to date
-    df['time_id'] = pd.to_datetime(df['time_id'], errors='coerce').dt.floor('ms').dt.date
-    # ints and floats
-    int_cols = ['start_hour','end_hour','duration','downtime_duration']
-    for c in int_cols:
-        df[c] = df[c].astype(int)
-    float_cols = ['qty_packed','num_totes_on']
-    for c in float_cols:
-        df[c] = df[c].astype(float)
+                        'plant_line': line,
+                        'product_id': np.int64(pid),
+                        'product_name': pname,
+                        'average_length_grading_mm_min': int(avg_min),
+                        'average_length_grading_mm_target': int(avg_tgt),
+                        'average_length_grading_mm_max': int(avg_max),
+                        'pct_min_50mm_length': float(np.random.uniform(0.80, 0.95)),
+                        'pct_min_75mm_length': float(np.random.uniform(0.40, 0.70)),
+                        'max_usda_color_0': int(c0),
+                        'max_usda_color_1': int(c1),
+                        'max_usda_color_2': int(c2),
+                        'max_usda_color_3': int(c3),
+                        'max_usda_color_4': int(c4),
+                        'max_defect_points': int(defect_caps[pname]),
+                        'min_dry_matter_pct': float(min_dm),
+                        'max_dry_matter_pct': float(max_dm),
+                        'approved_potato_varieties': list(np.random.choice(VARIETIES, size=3, replace=False)),
+                    }
+                )
+    df = pd.DataFrame(rows)
+    # Very small null rate in pct_min_75mm_length (non-critical) ~0.2%
+    mask_null = np.random.rand(len(df)) < 0.002
+    df.loc[mask_null, 'pct_min_75mm_length'] = np.nan
     return df
 
+# ===============================
+# === 2) LINE EQUIPMENT INVENTORY (RAW)
+# ===============================
+# Schema columns:
+# plant_id (int), plant_name (string), plant_line (string), equipment_id (string), equipment_type (string),
+# equipment_description (string), equipment_rated_throughput_tph (double), commission_date (date)
 
-# -----------------------------
-# Summary / QA
-# -----------------------------
-def summarize_signals(loads_df, osipi_df, oee_df):
-    print("\nSummary checks:")
-    loads_df = loads_df.copy()
-    osipi_df = osipi_df.copy()
-    # Under-quality share baseline vs event for Idaho L2 intended
-    loads_df['date'] = pd.to_datetime(loads_df['delivery_time'], utc=True, errors='coerce').dt.tz_convert(None).dt.floor('ms').dt.date
-    mask_idaho_l2 = (loads_df['plant_id']=='idaho') & (loads_df['intended_line_id']=='l2')
-    baseline = loads_df[mask_idaho_l2 & (loads_df['date'] < pd.Timestamp('2025-09-08').date())]
-    eventwin = loads_df[mask_idaho_l2 & (loads_df['date'] >= pd.Timestamp('2025-09-09').date()) & (loads_df['date'] <= pd.Timestamp('2025-09-13').date())]
-    baseline_under = (baseline['dry_solids_pct'] < 20.0).mean() if len(baseline)>0 else np.nan
-    event_under = (eventwin['dry_solids_pct'] < 20.0).mean() if len(eventwin)>0 else np.nan
-    print(f"- Idaho L2 under-quality (dry solids <20%) baseline: {baseline_under*100:.1f}% vs event window: {event_under*100:.1f}%")
-    # OSIPI: color skew and defects during event for idaho skin-on
-    osipi_df['date'] = pd.to_datetime(osipi_df['datetime'], utc=True, errors='coerce').dt.tz_convert(None).dt.floor('ms').dt.date
-    id_skin = osipi_df[(osipi_df['plantid']=='idaho') & (osipi_df['productid']=='sku-ff-38-skinon')]
-    base_mask = id_skin['date'] < pd.Timestamp('2025-09-09').date()
-    event_mask = (id_skin['date'] >= pd.Timestamp('2025-09-09').date()) & (id_skin['date'] <= pd.Timestamp('2025-09-13').date())
-    base_def = id_skin[base_mask]['total_defect_points'].mean()
-    event_def = id_skin[event_mask]['total_defect_points'].mean()
-    base_dark_share = (id_skin[base_mask]['usda_color_2'] + id_skin[base_mask]['usda_color_3'] + id_skin[base_mask]['usda_color_4']).sum() / (id_skin[base_mask][['usda_color_0','usda_color_1','usda_color_2','usda_color_3','usda_color_4']].sum().sum() + 1e-9)
-    event_dark_share = (id_skin[event_mask]['usda_color_2'] + id_skin[event_mask]['usda_color_3'] + id_skin[event_mask]['usda_color_4']).sum() / (id_skin[event_mask][['usda_color_0','usda_color_1','usda_color_2','usda_color_3','usda_color_4']].sum().sum() + 1e-9)
-    print(f"- OSIPI defects baseline: {base_def:.2f} vs event: {event_def:.2f}; dark color share baseline {base_dark_share*100:.1f}% vs event {event_dark_share*100:.1f}%")
-    # OEE derate evidence
-    oee_id_l2 = oee_df[(oee_df['plant_id']=='idaho') & (oee_df['line_cd']=='l2')]
-    oee_id_l2['start_time_dt'] = pd.to_datetime(oee_id_l2['start_time'], errors='coerce')
-    oee_id_l2['date'] = oee_id_l2['start_time_dt'].dt.date
-    derate_event = oee_id_l2[(oee_id_l2['date'] >= pd.Timestamp('2025-09-09').date()) & (oee_id_l2['date'] <= pd.Timestamp('2025-09-13').date())]['downtime_duration'].mean()
-    derate_base = oee_id_l2[oee_id_l2['date'] < pd.Timestamp('2025-09-09').date()]['downtime_duration'].mean()
-    print(f"- OEE downtime duration baseline: {derate_base:.1f} min vs event: {derate_event:.1f} min")
+def generate_raw_line_equipment() -> pd.DataFrame:
+    print('Generating raw_line_equipment...')
+    equipment_catalog = [
+        ('CUT-2000', 'cutter', 'High-capacity potato cutter, model CUT-2000'),
+        ('FRY-XL', 'fryer', 'Continuous fryer XL with precise temp control'),
+        ('WASH-900', 'washer', 'Drum washer for pre-process cleaning'),
+        ('FREEZE-6', 'freezer', 'Cryo freezer tunnel model 6'),
+        ('SORT-AI', 'sorter', 'Optical sorter with AI defect removal'),
+    ]
+    rows = []
+    for plant in PLANTS:
+        plant_name = plant['plant_name']
+        for line in LINES_PER_PLANT[plant_name]:
+            # Assign typical equipment set per line
+            for eq_id, eq_type, eq_desc in equipment_catalog:
+                rated = {
+                    'cutter': np.random.uniform(6.5, 9.0),
+                    'fryer': np.random.uniform(4.5, 6.5),
+                    'washer': np.random.uniform(7.0, 10.0),
+                    'freezer': np.random.uniform(5.0, 7.5),
+                    'sorter': np.random.uniform(6.0, 8.5),
+                }[eq_type]
+                # Commission dates vary 2015..2024
+                year = np.random.randint(2015, 2025)
+                month = np.random.randint(1, 13)
+                day = np.random.randint(1, 28)
+                commission_date = pd.Timestamp(year=year, month=month, day=day).normalize().floor('ms')
+                rows.append(
+                    {
+                        'plant_id': int(plant['plant_id']),
+                        'plant_name': plant_name,
+                        'plant_line': line,
+                        'equipment_id': eq_id,
+                        'equipment_type': eq_type,
+                        'equipment_description': eq_desc,
+                        'equipment_rated_throughput_tph': float(round(rated, 2)),
+                        'commission_date': commission_date.date(),
+                    }
+                )
+    df = pd.DataFrame(rows)
+    # Small null rate in equipment_description ~0.1%
+    mask_null = np.random.rand(len(df)) < 0.001
+    df.loc[mask_null, 'equipment_description'] = None
+    return df
 
+# ===============================
+# === 3) RAW POTATO LOAD QUALITY (RAW)
+# ===============================
+# Schema columns:
+# plant_id (int), plant_name (string), VarietyLabel (string), load_number (string), effective_actual_weight (int),
+# average_length_grading_mm (int), usda_color_0_pct (double), usda_color_1_pct (double), usda_color_2_pct (double),
+# usda_color_3_pct (double), usda_color_4_pct (double), total_defect_points (int), dry_matter_pct (double)
 
-# -----------------------------
-# Main
-# -----------------------------
-if __name__ == "__main__":
-    print("Starting data generation...")
-    print("-" * 50)
-    df_loads = generate_raw_potato_load_quality()
-    save_to_parquet(df_loads, "raw_potato_load_quality")
+def generate_raw_potato_load_quality() -> pd.DataFrame:
+    print('Generating raw_potato_load_quality...')
+    rows = []
+    # Per plant daily loads: weekdays higher, weekends lower
+    for plant in PLANTS:
+        plant_name = plant['plant_name']
+        plant_id = plant['plant_id']
+        for d in DAYS:
+            day = pd.Timestamp(d).normalize().floor('ms')
+            weekday = day.weekday()
+            base_loads = np.random.poisson(lam=10 if weekday < 5 else 6)
+            base_loads = max(base_loads, 3)
+            # Event impacts:
+            # EU-NL-P03: Supplier S7 high-DM loads from 2025-08-17 onwards
+            s7_share = 0.1
+            if (plant_name == 'EU-NL-P03') and (day >= S7_TRANCHE_START):
+                s7_share = 0.35  # more S7 loads
+            # Build load entries
+            for i in range(base_loads):
+                is_s7 = np.random.rand() < s7_share
+                supplier_code = 'S7' if is_s7 else np.random.choice(['S1', 'S2', 'S3', 'S4', 'S5', 'S6'])
+                variety = np.random.choice(VARIETIES)
+                # load_number encodes plant, date, seq, supplier
+                seq = i + 1
+                load_number = f"{plant_name}-{day.strftime('%Y%m%d')}-{seq:03d}-{supplier_code}"
+                # Weight (kg) 12k..28k log-normal
+                eff_wt = int(np.clip(np.random.lognormal(mean=np.log(18_000), sigma=0.35), 12_000, 28_000))
+                # Average length grading by plant/product mix; keep within 50..85
+                avg_len = int(np.clip(np.random.normal(70, 6), 50, 85))
+                # USDA color % shares (0..100) sum to ~100
+                # Better color distribution for higher DM
+                if is_s7 and (plant_name == 'EU-NL-P03') and (day >= S7_TRANCHE_START):
+                    dm = float(np.random.uniform(23.0, 24.0))
+                    color1 = np.random.uniform(55, 70)
+                    color0 = np.random.uniform(5, 15)
+                    color2 = np.random.uniform(10, 20)
+                else:
+                    dm = float(np.random.lognormal(mean=np.log(21.5), sigma=0.06))
+                    dm = float(np.clip(dm, 20.0, 24.5))
+                    color1 = np.random.uniform(50, 65)
+                    color0 = np.random.uniform(5, 15)
+                    color2 = np.random.uniform(12, 22)
+                color3 = np.random.uniform(0.5, 5.0)
+                color4 = np.random.uniform(0.0, 1.2)
+                # Normalize to 100
+                total_color = color0 + color1 + color2 + color3 + color4
+                color0 = color0 * 100.0 / total_color
+                color1 = color1 * 100.0 / total_color
+                color2 = color2 * 100.0 / total_color
+                color3 = color3 * 100.0 / total_color
+                color4 = color4 * 100.0 / total_color
+                # Defect points
+                base_def = np.random.randint(800, 1600)
+                if (plant_name == 'NA-ID-P01') and (EVENT_START <= day <= EVENT_END):
+                    # Under-quality period more defects
+                    base_def += np.random.randint(600, 1400)
+                rows.append(
+                    {
+                        'plant_id': int(plant_id),
+                        'plant_name': plant_name,
+                        'VarietyLabel': variety,
+                        'load_number': load_number,
+                        'effective_actual_weight': int(eff_wt),
+                        'average_length_grading_mm': int(avg_len),
+                        'usda_color_0_pct': float(round(color0, 2)),
+                        'usda_color_1_pct': float(round(color1, 2)),
+                        'usda_color_2_pct': float(round(color2, 2)),
+                        'usda_color_3_pct': float(round(color3, 2)),
+                        'usda_color_4_pct': float(round(color4, 2)),
+                        'total_defect_points': int(base_def),
+                        'dry_matter_pct': float(round(dm, 2)),
+                    }
+                )
+    df = pd.DataFrame(rows)
+    # Small fraction null in VarietyLabel (~0.3%)
+    mask_null = np.random.rand(len(df)) < 0.003
+    df.loc[mask_null, 'VarietyLabel'] = None
+    return df
 
-    df_pss = generate_raw_product_specifications_pss()
-    save_to_parquet(df_pss, "raw_product_specifications_pss")
+# ===============================
+# === 4) OEE PRODUCTION RUNS AND DOWNTIME EVENTS (RAW)
+# ===============================
+# Schema columns:
+# datetime (timestamp), plant_id (int), plant_name (string), plant_line (string),
+# downtime_cat_1 (string), downtime_cat_2 (string), product_name (string),
+# start_time (timestamp), end_time (string), duration (bigint), downtime_duration (bigint),
+# qty_packed (double), num_totes_on (double)
 
-    df_osipi = generate_raw_line_quality_events_osipi()
-    save_to_parquet(df_osipi, "raw_line_quality_events_osipi")
+def generate_raw_oee_production_runs_and_downtime_events() -> pd.DataFrame:
+    print('Generating raw_oee_production_runs_and_downtime_events...')
+    rows = []
+    # Build per plant_line daily segments (multiple entries per day, mix of runs and downtimes)
+    for plant in PLANTS:
+        plant_name = plant['plant_name']
+        plant_id = plant['plant_id']
+        lines = LINES_PER_PLANT[plant_name]
+        for line in lines:
+            for d in DAYS:
+                day = pd.Timestamp(d).normalize()
+                weekday = day.weekday()
+                segments = np.random.poisson(lam=8 if weekday < 5 else 6)
+                segments = max(segments, 3)
+                # Distribution of product_name for the line
+                prod_probs = np.array([0.45, 0.35, 0.20])
+                prod_probs = prod_probs / prod_probs.sum()
+                for s in range(segments):
+                    # Determine start hour with business bias
+                    if weekday < 5:
+                        hour_probs = np.array([
+                            0.01, 0.01, 0.01, 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.09, 0.10, 0.10,
+                            0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02, 0.02, 0.01, 0.01,
+                        ])
+                    else:
+                        hour_probs = np.array([
+                            0.01, 0.01, 0.01, 0.01, 0.015, 0.02, 0.03, 0.04, 0.06, 0.08, 0.09, 0.09,
+                            0.08, 0.07, 0.06, 0.05, 0.05, 0.04, 0.035, 0.03, 0.025, 0.02, 0.015, 0.01,
+                        ])
+                    hour_probs = hour_probs / hour_probs.sum()
+                    start_hour = int(np.random.choice(np.arange(24), p=hour_probs))
+                    start_min = int(np.random.randint(0, 60))
+                    start_time = (day + pd.Timedelta(hours=start_hour, minutes=start_min)).floor('ms')
+                    # Duration seconds with heavy-tail
+                    dur_sec = int(np.random.lognormal(mean=np.log(3600), sigma=0.6))  # ~1h avg
+                    dur_sec = int(np.clip(dur_sec, 600, 18_000))
+                    end_time_ts = (start_time + pd.Timedelta(seconds=dur_sec)).floor('ms')
+                    # end_time string with occasional format issues
+                    if np.random.rand() < 0.15:
+                        # Different string format
+                        end_time_str = end_time_ts.strftime('%m/%d/%Y %H:%M:%S')
+                    elif np.random.rand() < 0.05:
+                        # Missing seconds
+                        end_time_str = end_time_ts.strftime('%Y-%m-%d %H:%M')
+                    else:
+                        end_time_str = end_time_ts.strftime('%Y-%m-%d %H:%M:%S')
+                    # Product for this segment
+                    prod_idx = int(np.random.choice(len(PRODUCTS), p=prod_probs))
+                    product_name = PRODUCTS[prod_idx]['product_name']
+                    # Downtime categorization
+                    is_downtime = np.random.rand() < (0.20 if weekday < 5 else 0.25)
+                    dt_cat_1 = 'Maintenance' if is_downtime and (np.random.rand() < 0.5) else ('Cleaning' if is_downtime else 'Run')
+                    dt_cat_2 = 'Cutter' if is_downtime else 'N/A'
+                    # Inject specific downtime codes on NA-ID-P01 L3 around 2025-08-22..
+                    notes_code = ''
+                    if (plant_name == 'NA-ID-P01') and (line == 'L3'):
+                        if pd.Timestamp('2025-08-22') <= day <= pd.Timestamp('2025-09-05') and is_downtime:
+                            # Emulate codes DOW-PI-4521, DOW-PI-4574 in the cat_2 text
+                            dt_cat_2 = np.random.choice(['Cutter DOW-PI-4521', 'Cutter DOW-PI-4574', 'Fryer'])
+                    # Downtime duration spikes during event window (under-quality)
+                    dt_duration = int(np.random.randint(0, int(dur_sec * (0.6 if is_downtime else 0.15))))
+                    if (plant_name == 'NA-ID-P01') and (line == 'L3') and (EVENT_START <= day <= EVENT_END):
+                        # Increase downtime during event
+                        if is_downtime:
+                            dt_duration = int(np.clip(dt_duration + np.random.randint(600, 3600), 300, dur_sec))
+                    # Qty packed correlates negatively with downtime
+                    base_rate = np.random.uniform(4.0, 7.5)  # kg per sec approx scaled
+                    qty_packed = float(max(0.0, base_rate * (dur_sec - dt_duration)))
+                    # Totes on ~ throughput indicator
+                    totes_on = float(np.random.uniform(1.0, 10.0))
 
-    df_oee = generate_raw_oee_equipment_events()
-    save_to_parquet(df_oee, "raw_oee_equipment_events")
+                    rows.append(
+                        {
+                            'datetime': start_time,
+                            'plant_id': int(plant_id),
+                            'plant_name': plant_name,
+                            'plant_line': line,
+                            'downtime_cat_1': dt_cat_1,
+                            'downtime_cat_2': dt_cat_2,
+                            'product_name': product_name,
+                            'start_time': start_time,
+                            'end_time': end_time_str,
+                            'duration': np.int64(dur_sec),
+                            'downtime_duration': np.int64(dt_duration),
+                            'qty_packed': float(round(qty_packed, 2)),
+                            'num_totes_on': float(round(totes_on, 2)),
+                        }
+                    )
+    df = pd.DataFrame(rows)
+    # Normalize datetime columns to ms
+    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.floor('ms')
+    df['start_time'] = pd.to_datetime(df['start_time'], errors='coerce').dt.floor('ms')
+    # Allow a tiny null fraction in num_totes_on (~0.2%)
+    mask_null = np.random.rand(len(df)) < 0.002
+    df.loc[mask_null, 'num_totes_on'] = np.nan
+    return df
 
-    summarize_signals(df_loads, df_osipi, df_oee)
-    print("Data generation complete.")
+# ===============================
+# === 5) OSI PI LINE QUALITY EVENTS (RAW)
+# ===============================
+# Schema columns:
+# datetime (timestamp), plant_id (int), plant_name (string), product_id (string), product_name (string), variety (string),
+# avg_length_mm (int), usda_color_0 (bigint), usda_color_1 (bigint), usda_color_2 (bigint), usda_color_3 (bigint),
+# usda_color_4 (bigint), total_defect_points (bigint), dry_solids_pct (double)
+
+def generate_raw_line_quality_events_osipi() -> pd.DataFrame:
+    print('Generating raw_line_quality_events_osipi...')
+    rows = []
+    # Hourly events with weekday concentration
+    for plant in PLANTS:
+        plant_id = plant['plant_id']
+        plant_name = plant['plant_name']
+        region = plant['region']
+        for d in DAYS:
+            day = pd.Timestamp(d).normalize()
+            weekday = day.weekday()
+            # Hours per day: weekdays more; weekends less
+            hours_count = np.random.poisson(lam=18 if weekday < 5 else 12)
+            hours_count = int(np.clip(hours_count, 8, 22))
+            # Pick hours
+            if weekday < 5:
+                hour_probs = np.array([
+                    0.01, 0.01, 0.01, 0.01, 0.015, 0.02, 0.03, 0.05, 0.08, 0.09, 0.10, 0.10,
+                    0.09, 0.08, 0.07, 0.06, 0.05, 0.04, 0.03, 0.03, 0.02, 0.02, 0.015, 0.01,
+                ])
+            else:
+                hour_probs = np.array([
+                    0.01, 0.01, 0.01, 0.01, 0.01, 0.02, 0.03, 0.04, 0.06, 0.08, 0.09, 0.09,
+                    0.08, 0.07, 0.06, 0.05, 0.05, 0.045, 0.04, 0.035, 0.03, 0.02, 0.015, 0.01,
+                ])
+            hour_probs = hour_probs / hour_probs.sum()
+            hours = np.random.choice(np.arange(24), size=hours_count, replace=False, p=hour_probs)
+            # Product mix per plant
+            prod_probs = np.array([0.45, 0.35, 0.20])
+            prod_probs = prod_probs / prod_probs.sum()
+            prods = np.random.choice([p['product_name'] for p in PRODUCTS], size=hours_count, p=prod_probs)
+            for hh, pname in zip(hours, prods):
+                # Base quality distributions
+                # avg_length_mm ~ product target +/- random
+                avg_len_target = {'SC-9mm': 60, 'CC-13mm': 70, 'WG-25mm': 80}[pname]
+                avg_length_mm = int(np.clip(np.random.normal(avg_len_target, 4), 50, 85))
+                # USDA counts baseline heavy-tail
+                base_total = np.random.randint(3500, 6500)  # total fries sampled per hour
+                # Distribute counts across bins with shares
+                if pname == 'CC-13mm' and plant_name == 'NA-ID-P01' and (EVENT_START <= day <= EVENT_END):
+                    # Under-quality spike: color 2 increases, defects rise
+                    shares = np.array([0.06, 0.50, 0.30, 0.11, 0.03])
+                    defect_points = np.random.randint(2600, 3800)
+                    dry_solids = float(np.random.uniform(20.6, 21.0))
+                elif pname == 'SC-9mm' and plant_name == 'EU-NL-P03' and (EVENT_START <= day <= EVENT_END):
+                    # Over-quality sustained: high dry solids (23.4..23.9), within defects
+                    shares = np.array([0.08, 0.62, 0.23, 0.06, 0.01])
+                    defect_points = np.random.randint(1200, 2000)
+                    dry_solids = float(np.random.uniform(23.4, 23.9))
+                else:
+                    shares = np.array([0.07, 0.65, 0.20, 0.07, 0.01])
+                    defect_points = np.random.randint(1200, 2400)
+                    # Baseline dry solids by SKU region
+                    base_dm = np.random.normal(22.0 if pname != 'CC-13mm' else 22.6, 0.35)
+                    dry_solids = float(np.clip(base_dm, 21.0, 24.0))
+                shares = shares / shares.sum()
+                counts = np.random.multinomial(n=base_total, pvals=shares)
+                c0, c1, c2, c3, c4 = counts
+                dt = (day + pd.Timedelta(hours=int(hh))).floor('ms')
+                rows.append(
+                    {
+                        'datetime': dt,
+                        'plant_id': int(plant_id),
+                        'plant_name': plant_name,
+                        'product_id': str(next(p['product_id'] for p in PRODUCTS if p['product_name'] == pname)),
+                        'product_name': pname,
+                        'variety': np.random.choice(VARIETIES),
+                        'avg_length_mm': int(avg_length_mm),
+                        'usda_color_0': np.int64(c0),
+                        'usda_color_1': np.int64(c1),
+                        'usda_color_2': np.int64(c2),
+                        'usda_color_3': np.int64(c3),
+                        'usda_color_4': np.int64(c4),
+                        'total_defect_points': np.int64(defect_points),
+                        'dry_solids_pct': float(round(dry_solids, 2)),
+                    }
+                )
+    df = pd.DataFrame(rows)
+    # Normalize datetime to ms
+    df['datetime'] = pd.to_datetime(df['datetime'], errors='coerce').dt.floor('ms')
+    # Tiny null rate in variety (~0.2%)
+    mask_null = np.random.rand(len(df)) < 0.002
+    df.loc[mask_null, 'variety'] = None
+    return df
+
+# ===============================
+# === SUMMARY / QA ASSERTIONS ===
+# ===============================
+
+def print_story_signals_summary(osipi: pd.DataFrame, loads: pd.DataFrame, oee: pd.DataFrame):
+    print('\nQuick QA summary:')
+    # EU-NL-P03 L2 SC-9mm over-quality in OSI PI
+    # Ensure datetime is proper dtype for comparisons
+    osipi['datetime'] = pd.to_datetime(osipi['datetime'], errors='coerce').dt.floor('ms').dt.tz_localize(None)
+    mask_over = (
+        (osipi['plant_name'] == 'EU-NL-P03')
+        & (osipi['product_name'] == 'SC-9mm')
+        & (osipi['datetime'] >= EVENT_START)
+        & (osipi['datetime'] <= EVENT_END)
+    )
+    over_dm = osipi.loc[mask_over, 'dry_solids_pct']
+    print(f"  EU-NL-P03 SC-9mm event DM avg: {over_dm.mean():.2f}% (n={len(over_dm)})")
+
+    # NA-ID-P01 L3 CC-13mm under-quality & defects
+    osipi['datetime'] = pd.to_datetime(osipi['datetime'], errors='coerce').dt.floor('ms').dt.tz_localize(None)
+    mask_under = (
+        (osipi['plant_name'] == 'NA-ID-P01')
+        & (osipi['product_name'] == 'CC-13mm')
+        & (osipi['datetime'] >= EVENT_START)
+        & (osipi['datetime'] <= EVENT_END)
+    )
+    under_dm = osipi.loc[mask_under, 'dry_solids_pct']
+    under_def = osipi.loc[mask_under, 'total_defect_points']
+    print(f"  NA-ID-P01 CC-13mm event DM avg: {under_dm.mean():.2f}% defects avg: {under_def.mean():.1f} (n={len(under_dm)})")
+
+    # Loads: S7 high-DM at EU-NL-P03 post 2025-08-17
+    loads['date'] = loads['load_number'].str.split('-').str[1]
+    loads['date'] = pd.to_datetime(loads['date'], format='%Y%m%d', errors='coerce')
+    mask_s7 = (loads['plant_name'] == 'EU-NL-P03') & (loads['load_number'].str.contains('S7')) & (loads['date'] >= S7_TRANCHE_START)
+    s7_dm = loads.loc[mask_s7, 'dry_matter_pct']
+    print(f"  EU-NL-P03 S7 loads DM avg post-tranche: {s7_dm.mean():.2f}% (n={len(s7_dm)})")
+
+    # OEE: downtime spike NA-ID-P01 L3 during event
+    # Ensure OEE datetime is proper dtype for comparisons
+    oee['datetime'] = pd.to_datetime(oee['datetime'], errors='coerce').dt.floor('ms').dt.tz_localize(None)
+    oee['date'] = oee['datetime']
+    mask_oee = (
+        (oee['plant_name'] == 'NA-ID-P01')
+        & (oee['plant_line'] == 'L3')
+        & (oee['date'] >= EVENT_START)
+        & (oee['date'] <= EVENT_END)
+        & (oee['downtime_cat_1'] != 'Run')
+    )
+    print(f"  OEE downtime events NA-ID-P01 L3 during event: {mask_oee.sum():,}")
+
+# ===============================
+# === MAIN
+# ===============================
+if __name__ == '__main__':
+    print('Starting McCain Foods RAW data generation...')
+    print('-' * 60)
+
+    # 1) Product specs (reference)
+    raw_pss = generate_raw_product_specifications_pss()
+    print(f"raw_product_specifications_pss rows: {len(raw_pss):,}")
+    save_to_parquet(raw_pss, 'raw_product_specifications_pss', num_files=2)
+
+    # 2) Line equipment inventory
+    raw_equipment = generate_raw_line_equipment()
+    print(f"raw_line_equipment rows: {len(raw_equipment):,}")
+    save_to_parquet(raw_equipment, 'raw_line_equipment', num_files=1)
+
+    # 3) Potato load quality
+    raw_loads = generate_raw_potato_load_quality()
+    print(f"raw_potato_load_quality rows: {len(raw_loads):,}")
+    save_to_parquet(raw_loads, 'raw_potato_load_quality', num_files=6)
+
+    # 4) OEE production runs and downtime events
+    raw_oee = generate_raw_oee_production_runs_and_downtime_events()
+    print(f"raw_oee_production_runs_and_downtime_events rows: {len(raw_oee):,}")
+    save_to_parquet(raw_oee, 'raw_oee_production_runs_and_downtime_events', num_files=6)
+
+    # 5) OSI PI line quality events
+    raw_osipi = generate_raw_line_quality_events_osipi()
+    print(f"raw_line_quality_events_osipi rows: {len(raw_osipi):,}")
+    save_to_parquet(raw_osipi, 'raw_line_quality_events_osipi', num_files=8)
+
+    # QA summary
+    print_story_signals_summary(raw_osipi, raw_loads, raw_oee)
+
+    print('\n' + '=' * 60)
+    print('GENERATION COMPLETE - All timestamps are naive, floored to ms.')
+    print('=' * 60)

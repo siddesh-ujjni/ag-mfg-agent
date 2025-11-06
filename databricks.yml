@@ -1,9 +1,9 @@
 bundle:
-  name: ai_demo_generator_demo_mccain
+  name: ai_demo_generator_demo_mccain_ebc
 variables:
   project_name:
     description: AI Demo Generator Project
-    default: mccain
+    default: mccain_ebc
   warehouse_name:
     description: Name of the SQL warehouse to use
     default: Shared Unity Catalog Serverless
@@ -15,7 +15,7 @@ variables:
     default: dev
   workspace_path:
     description: Workspace path where bundle files will be synced
-    default: /Users/brian.lui@databricks.com/mccain
+    default: /Users/brian.lui@databricks.com/mccain_ebc
 workspace:
   file_path: ${var.workspace_path}
 sync:
@@ -24,7 +24,7 @@ sync:
   - utils.py
   - generate_data.py
   - transformations.sql
-  - dashboard_closed_loop_blend_optimization.lvdash.json
+  - dashboard_manufacturing_quality_oee_cost.lvdash.json
   - deploy_resources.py
   - bricks_conf.json
 targets:
@@ -70,19 +70,18 @@ resources:
           - databricks-sdk>=0.18.0
   schemas:
     demo_schema:
-      name: brian_lui_mccain
-      catalog_name: brlui
-      comment: Schema for mccain demo
+      name: brian_lui_mccain_ebc
+      catalog_name: demo_generator
+      comment: Schema for mccain_ebc demo
   volumes:
     raw_data_volume:
       name: raw_data
-      catalog_name: brlui
-      schema_name: brian_lui_mccain
+      catalog_name: demo_generator
+      schema_name: brian_lui_mccain_ebc
       volume_type: MANAGED
-      comment: Volume for mccain raw data and artifacts
+      comment: Volume for mccain_ebc raw data and artifacts
   dashboards:
-    closed_loop_blend_optimization:
-      display_name: ${var.project_name} - closed-loop blend optimization - mccain
-        idaho
-      file_path: ./dashboard_closed_loop_blend_optimization.lvdash.json
+    manufacturing_quality_oee_cost:
+      display_name: ${var.project_name} - Production Quality, OEE, and Cost Exposure
+      file_path: ./dashboard_manufacturing_quality_oee_cost.lvdash.json
       warehouse_id: ${var.warehouse_id}
