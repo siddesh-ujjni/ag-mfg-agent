@@ -70,14 +70,14 @@ resources:
           - databricks-sdk>=0.18.0
   schemas:
     demo_schema:
-      name: brian_lui_mccain_ebc
-      catalog_name: demo_generator
+      name: ag_mfg
+      catalog_name: mccain_ebc_catalog
       comment: Schema for mccain_ebc demo
   volumes:
     raw_data_volume:
       name: raw_data
-      catalog_name: demo_generator
-      schema_name: brian_lui_mccain_ebc
+      catalog_name: mccain_ebc_catalog
+      schema_name: ag_mfg
       volume_type: MANAGED
       comment: Volume for mccain_ebc raw data and artifacts
   dashboards:

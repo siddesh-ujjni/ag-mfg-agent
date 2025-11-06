@@ -3,21 +3,28 @@
     "config": {
       "id": "01f0b9cf5c291e4cbc5e2de1c372cca1",
       "space_id": "01f0b9cf5c291e4cbc5e2de1c372cca1",
-      "display_name": "McCain Foods Manufacturing Quality & OEE Optimization - Genie AI-BI",
+      "display_name": "McCain EBC - Manufacturing Quality, OEE, and Cost Optimization - Genie AI-BI",
       "description": "Genie space for mccain_ebc demo with curated questions and SQL instructions",
       "warehouse_id": "862f1d757f0424f7",
       "created_timestamp": 1762296070410,
-      "last_updated_timestamp": 1762296741027,
+      "last_updated_timestamp": 1762448032183,
       "table_identifiers": [
-        "demo_generator.brian_lui_mccain_ebc.gold_line_hourly_metrics",
-        "demo_generator.brian_lui_mccain_ebc.gold_cost_exposure",
-        "demo_generator.brian_lui_mccain_ebc.gold_oee_kpis",
-        "demo_generator.brian_lui_mccain_ebc.gold_change_alignment",
-        "demo_generator.brian_lui_mccain_ebc.gold_quality_weekly",
-        "demo_generator.brian_lui_mccain_ebc.gold_cumulative_costs",
-        "demo_generator.brian_lui_mccain_ebc.gold_line_hourly_quality",
-        "demo_generator.brian_lui_mccain_ebc.gold_date_spine",
-        "demo_generator.brian_lui_mccain_ebc.gold_scenario_recommendations"
+        "mccain_ebc_catalog.ag_mfg.gold_line_hourly_quality",
+        "mccain_ebc_catalog.ag_mfg.gold_line_hourly_metrics",
+        "mccain_ebc_catalog.ag_mfg.gold_cost_exposure",
+        "mccain_ebc_catalog.ag_mfg.gold_quality_weekly",
+        "mccain_ebc_catalog.ag_mfg.gold_oee_kpis",
+        "mccain_ebc_catalog.ag_mfg.gold_change_alignment",
+        "mccain_ebc_catalog.ag_mfg.gold_cumulative_costs",
+        "mccain_ebc_catalog.ag_mfg.silver_potato_load_quality",
+        "mccain_ebc_catalog.ag_mfg.silver_potato_variety_costs",
+        "mccain_ebc_catalog.ag_mfg.silver_oee_events",
+        "mccain_ebc_catalog.ag_mfg.silver_oee_production_runs_and_downtime_events",
+        "mccain_ebc_catalog.ag_mfg.silver_line_quality_events_osipi",
+        "mccain_ebc_catalog.ag_mfg.silver_line_equipment",
+        "mccain_ebc_catalog.ag_mfg.silver_product_revenue_by_line",
+        "mccain_ebc_catalog.ag_mfg.silver_current_product_demand",
+        "mccain_ebc_catalog.ag_mfg.silver_product_specifications_pss"
       ],
       "user_id": 6744972395736473,
       "run_as_type": "VIEWER",
@@ -33,27 +40,27 @@
       },
       {
         "title": "Hourly quality deviations vs PSS by line",
-        "content": "-- Identify hours flagged under/over quality by plant/line/product\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct,\n       min_dry_matter_pct, max_dry_matter_pct,\n       under_quality_flag, over_quality_flag\nFROM demo_generator.brian_lui_mccain_ebc.gold_line_hourly_quality\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "content": "-- Identify hours flagged under/over quality by plant/line/product\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct,\n       min_dry_matter_pct, max_dry_matter_pct,\n       under_quality_flag, over_quality_flag\nFROM mccain_ebc_catalog.ag_mfg.gold_line_hourly_quality\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Daily blend intake DM vs target (aggregated)",
-        "content": "-- Daily average blend DM and hours in breach by plant/line\nSELECT date, plant_name, plant_line, product_name,\n       AVG(blend_dm_pct) AS avg_blend_dm_pct,\n       SUM(hours_under_quality) AS hours_under_quality,\n       SUM(hours_over_quality) AS hours_over_quality\nFROM demo_generator.brian_lui_mccain_ebc.gold_line_hourly_metrics\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nGROUP BY date, plant_name, plant_line, product_name\nORDER BY plant_name, plant_line, product_name, date;",
+        "content": "-- Daily average blend DM and hours in breach by plant/line\nSELECT date, plant_name, plant_line, product_name,\n       AVG(blend_dm_pct) AS avg_blend_dm_pct,\n       SUM(hours_under_quality) AS hours_under_quality,\n       SUM(hours_over_quality) AS hours_over_quality\nFROM mccain_ebc_catalog.ag_mfg.gold_line_hourly_metrics\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nGROUP BY date, plant_name, plant_line, product_name\nORDER BY plant_name, plant_line, product_name, date;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Cost exposure (over-quality vs downgrade/rework)",
-        "content": "-- Daily cost exposure by plant/product\nSELECT plant_name, region, product_name, date,\n       tons_processed, avg_dry_matter_pct,\n       over_quality_waste_usd, downgrade_rework_exposure_usd,\n       raw_potato_spend_usd\nFROM demo_generator.brian_lui_mccain_ebc.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, product_name, date;",
+        "content": "-- Daily cost exposure by plant/product\nSELECT plant_name, region, product_name, date,\n       tons_processed, avg_dry_matter_pct,\n       over_quality_waste_usd, downgrade_rework_exposure_usd,\n       raw_potato_spend_usd\nFROM mccain_ebc_catalog.ag_mfg.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, product_name, date;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "OEE daily KPIs and performance around deviations",
-        "content": "-- OEE KPIs per plant/line; joinable to quality dates\nSELECT date, plant_name, plant_line, event_count, total_downtime_min,\n       run_duration_min, qty_packed_kg, num_totes_on, oee_performance\nFROM demo_generator.brian_lui_mccain_ebc.gold_oee_kpis\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, date;",
+        "content": "-- OEE KPIs per plant/line; joinable to quality dates\nSELECT date, plant_name, plant_line, event_count, total_downtime_min,\n       run_duration_min, qty_packed_kg, num_totes_on, oee_performance\nFROM mccain_ebc_catalog.ag_mfg.gold_oee_kpis\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, date;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Align downtime categories with quality flags",
-        "content": "-- Hourly alignment of quality flags to downtime categories\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct, under_quality_flag, over_quality_flag,\n       downtime_cat_1, downtime_cat_2, duration_min, downtime_min\nFROM demo_generator.brian_lui_mccain_ebc.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "content": "-- Hourly alignment of quality flags to downtime categories\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct, under_quality_flag, over_quality_flag,\n       downtime_cat_1, downtime_cat_2, duration_min, downtime_min\nFROM mccain_ebc_catalog.ag_mfg.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
@@ -63,27 +70,87 @@
       },
       {
         "title": "Daily Blend DM vs Target by Line and SKU",
-        "content": "-- Use gold_line_hourly_metrics for daily aggregates powering the DM vs target chart\nSELECT date, plant_name, plant_line, product_name, blend_dm_pct, hours_under_quality, hours_over_quality, defect_points\nFROM demo_generator.brian_lui_mccain_ebc.gold_line_hourly_metrics\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, plant_line, product_name;",
+        "content": "-- Use gold_line_hourly_metrics for daily aggregates powering the DM vs target chart\nSELECT date, plant_name, plant_line, product_name, blend_dm_pct, hours_under_quality, hours_over_quality, defect_points\nFROM mccain_ebc_catalog.ag_mfg.gold_line_hourly_metrics\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, plant_line, product_name;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Cost Exposure: Over-Quality Waste and Downgrade/Rework",
-        "content": "-- Use gold_cost_exposure to quantify financial impacts by plant/product\nSELECT plant_name, region, product_name, date, tons_processed, avg_dry_matter_pct,\n       over_quality_waste_usd, downgrade_rework_exposure_usd, raw_potato_spend_usd\nFROM demo_generator.brian_lui_mccain_ebc.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, product_name;",
+        "content": "-- Use gold_cost_exposure to quantify financial impacts by plant/product\nSELECT plant_name, region, product_name, date, tons_processed, avg_dry_matter_pct,\n       over_quality_waste_usd, downgrade_rework_exposure_usd, raw_potato_spend_usd\nFROM mccain_ebc_catalog.ag_mfg.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, product_name;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "OEE KPIs Around Deviation Window",
-        "content": "-- Use gold_oee_kpis to analyze daily OEE metrics per plant line\nSELECT date, plant_name, plant_line, total_downtime_min, run_duration_min,\n       qty_packed_kg, num_totes_on, oee_performance\nFROM demo_generator.brian_lui_mccain_ebc.gold_oee_kpis\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, plant_line;",
+        "content": "-- Use gold_oee_kpis to analyze daily OEE metrics per plant line\nSELECT date, plant_name, plant_line, total_downtime_min, run_duration_min,\n       qty_packed_kg, num_totes_on, oee_performance\nFROM mccain_ebc_catalog.ag_mfg.gold_oee_kpis\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, plant_line;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Correlate Hourly Quality Flags with Downtime Categories",
-        "content": "-- Join change alignment to see hourly under/over-quality against downtime categories\nSELECT date, hour, plant_name, plant_line, product_name, dry_solids_pct,\n       under_quality_flag, over_quality_flag, downtime_cat_1, downtime_cat_2,\n       duration_min, downtime_min\nFROM demo_generator.brian_lui_mccain_ebc.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, hour, plant_name, plant_line;",
+        "content": "-- Join change alignment to see hourly under/over-quality against downtime categories\nSELECT date, hour, plant_name, plant_line, product_name, dry_solids_pct,\n       under_quality_flag, over_quality_flag, downtime_cat_1, downtime_cat_2,\n       duration_min, downtime_min\nFROM mccain_ebc_catalog.ag_mfg.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, hour, plant_name, plant_line;",
         "instruction_type": "SQL_INSTRUCTION"
       },
       {
         "title": "Scenario Recommendations with Savings and Rationale",
-        "content": "-- Use gold_scenario_recommendations to surface actions for human-in-the-loop review\nSELECT recommendation_id, type, plant_name, plant_line,\n       expected_savings_usd, expected_quality_delta_pp, confidence, rationale\nFROM demo_generator.brian_lui_mccain_ebc.gold_scenario_recommendations\nORDER BY expected_savings_usd DESC;",
+        "content": "-- Use gold_scenario_recommendations to surface actions for human-in-the-loop review\nSELECT recommendation_id, type, plant_name, plant_line,\n       expected_savings_usd, expected_quality_delta_pp, confidence, rationale\nFROM mccain_ebc_catalog.ag_mfg.gold_scenario_recommendations\nORDER BY expected_savings_usd DESC;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space analyzes near-real-time manufacturing quality, OEE, and cost exposure for McCain Foods across NA and EU plants and lines. Use gold tables for fast KPI answers (hourly quality flags, OEE KPIs, cost exposure, cumulative spend/waste, and event alignment). Silver tables support supplier/load mix detail, raw OSI PI signals, downtime event logs, equipment inventory, and demand/revenue context.\n\nKey business logic and context:\n- Quality thresholds from PSS use a 0.3pp tolerance: under-quality when dry_solids_pct (DM proxy) < min_dry_matter_pct - 0.3pp; over-quality when > max_dry_matter_pct + 0.3pp.\n- Event window: 2025-08-18..2025-09-12. Over-quality concentrated at EU-NL-P03 L2 (SC-9mm) due to high-DM Supplier S7 tranche starting 2025-08-17 and conservative blending. Under-quality on NA-ID-P01 L3 (CC-13mm) aligns with cutter maintenance deferment and downtime codes DOW-PI-4521/4574.\n- Cost impacts: over_quality_waste_usd estimates incremental raw spend from DM above max; downgrade_rework_exposure_usd estimates expected rework/downgrade costs when DM below min.\n- OEE performance dips and downtime components (cutter/fryer) correlate with quality drift via gold_change_alignment; use gold_oee_kpis for performance proxy and downtime minutes.\n- Scenario Planner context: gold_scenario_recommendations surfaces load reallocation vs equipment upgrades with expected_savings_usd, expected_quality_delta_pp, and confidence. Use silver_line_equipment to interpret upgrade rationale (age vs rated TPH).\n\nData model notes:\n- Blend/DM proxy: dry_solids_pct in gold_line_hourly_quality; daily aggregates in gold_line_hourly_metrics. Weekly plant-level view in gold_quality_weekly.\n- Supplier/load mix: silver_potato_load_quality with dm_band and tons; join to silver_potato_variety_costs on region/variety/dm_band/effective_date for pricing context.\n- Demand and revenue context: silver_product_revenue_by_line and silver_current_product_demand for margin and planning implications.\n\nData quality considerations:\n- Minor naming inconsistencies for product_name between sources are standardized in silver/gold; prefer product_name and plant_line keys in joins.\n- Some OEE end_time fields are missing in raw; gold_oee_kpis is already aggregated and reliable for KPIs, while silver_oee_events retains raw event granularity and codes.\n- USDA fry color distributions are normalized as shares in silver_line_quality_events_osipi; defect points provide additional under-quality signal.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Find over-/under-quality windows by plant/line/SKU",
+        "content": "-- Identify hours flagged versus PSS thresholds with 0.3pp tolerance\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct,\n       under_quality_flag, over_quality_flag\nFROM mccain_ebc_catalog.ag_mfg.gold_line_hourly_quality\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Align quality flags to OEE downtime categories",
+        "content": "-- Correlate quality deviations with downtime components and durations\nSELECT date, hour, plant_name, plant_line, product_name,\n       under_quality_flag, over_quality_flag,\n       downtime_cat_1, downtime_cat_2, downtime_min\nFROM mccain_ebc_catalog.ag_mfg.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Daily cost exposure by plant and SKU",
+        "content": "-- Over-quality waste and downgrade/rework exposure\nSELECT date, plant_name, region, product_name,\n       tons_processed, avg_dry_matter_pct,\n       raw_potato_spend_usd, over_quality_waste_usd, downgrade_rework_exposure_usd\nFROM mccain_ebc_catalog.ag_mfg.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, product_name, date;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Cumulative spend and over-quality waste by region",
+        "content": "-- Executive cumulative view\nSELECT date, region, cumulative_spend_usd, cumulative_over_quality_waste_usd\nFROM mccain_ebc_catalog.ag_mfg.gold_cumulative_costs\nORDER BY date, region;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Throughput constraints and equipment context",
+        "content": "-- Identify equipment on constrained lines with effective rated TPH\nSELECT le.plant_name, le.plant_line, le.equipment_id, le.equipment_type,\n       le.equipment_rated_throughput_tph, le.effective_rated_throughput_tph,\n       ek.oee_performance, ek.total_downtime_min\nFROM mccain_ebc_catalog.ag_mfg.silver_line_equipment le\nJOIN mccain_ebc_catalog.ag_mfg.gold_oee_kpis ek\n  ON le.plant_name = ek.plant_name AND le.plant_line = ek.plant_line\nWHERE ek.date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY le.plant_name, le.plant_line, le.equipment_type;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Notes",
+        "content": "This Genie space supports near-real-time detection and investigation of production quality deviations (under- and over-quality), alignment to OEE downtime patterns and equipment constraints, and quantification of financial exposure for McCain Foods plants and lines. Gold tables provide curated KPIs for hourly deviations, daily cost exposure, weekly aggregates, OEE performance, and change alignment; silver tables enable detailed slice-and-dice of raw loads, OSI PI quality signals, equipment inventory, demand and revenue context.\n\nCore business logic and calculations:\n- Under-/over-quality flags in gold_line_hourly_quality apply a 0.3pp DM tolerance relative to PSS: under if dry_solids_pct < min_dry_matter_pct - 0.3; over if dry_solids_pct > max_dry_matter_pct + 0.3.\n- Cost exposure uses price per ton by region/variety/dm_band; over_quality_waste_usd approximates delta_DM \u00d7 price_slope_region \u00d7 tons; downgrade_rework_exposure_usd approximates shortfall \u00d7 downgrade_loss_per_ton_region.\n- Change alignment correlates hourly flags to downtime components (maintenance/cleaning/run) and specific cutter codes (e.g., DOW-PI-4521, DOW-PI-4574) on NA-ID-P01 L3.\n- Weekly and daily aggregates highlight sustained over-quality at EU-NL-P03 L2 for SC-9mm and under-quality at NA-ID-P01 L3 for CC-13mm in the 2025-08-18..2025-09-12 window.\n- Scenario recommendations include load reallocation and equipment upgrades; the table provides expected savings, quality delta, and confidence for human review.\n\nData model notes:\n- Use gold_line_hourly_quality for hourly deviation analysis; gold_line_hourly_metrics for daily line-level trends.\n- gold_cost_exposure and gold_cumulative_costs quantify spend and waste; silver_potato_variety_costs gives pricing context by dm_band and supplier/contract.\n- gold_oee_kpis and gold_change_alignment expose performance and downtime alignment; silver_oee_events provides event-level details with component/code.\n- silver_line_equipment lists equipment types, age, and effective rated throughput for upgrade assessments.\n- silver_product_revenue_by_line adds revenue/margin context; silver_current_product_demand supports planning trade-offs.\n\nData quality considerations:\n- Minor inconsistencies in product naming variants are standardized in silver/gold; rely on product_name in gold tables.\n- End_time parsing in OEE silver may be missing in a subset; use duration_min/downtime_min fields for robust analysis.\n- Some load-level variety labels are normalized; an 'Unknown' variety exists in small counts and should be excluded in strict compliance checks.\n\nRecommended filters: date range (use the event window 2025-08-18..2025-09-12 for the demo), region (NA/EU), plant_name, plant_line, and product_name.\n\nUse gold tables for fast answers; pivot to silver tables when tracing root cause across loads, events, or equipment.",
+        "instruction_type": "TEXT_INSTRUCTION"
+      },
+      {
+        "title": "Identify hourly deviations vs PSS with tolerance",
+        "content": "-- Hourly quality deviations by plant/line/product with flags\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct AS blend_dm_pct,\n       min_dry_matter_pct, max_dry_matter_pct,\n       under_quality_flag, over_quality_flag\nFROM mccain_ebc_catalog.ag_mfg.gold_line_hourly_quality\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Cost exposure: over-quality waste and downgrade/rework risk",
+        "content": "-- Daily cost exposure metrics by plant/product\nSELECT date, plant_name, region, product_name,\n       tons_processed, avg_dry_matter_pct,\n       raw_potato_spend_usd,\n       over_quality_waste_usd,\n       downgrade_rework_exposure_usd\nFROM mccain_ebc_catalog.ag_mfg.gold_cost_exposure\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY date, plant_name, product_name;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Align deviations with OEE downtime components",
+        "content": "-- Correlate hourly quality flags with downtime categories/components\nSELECT date, hour, plant_name, plant_line, product_name,\n       dry_solids_pct, under_quality_flag, over_quality_flag,\n       downtime_cat_1, downtime_cat_2, duration_min, downtime_min\nFROM mccain_ebc_catalog.ag_mfg.gold_change_alignment\nWHERE date BETWEEN '2025-08-18' AND '2025-09-12'\nORDER BY plant_name, plant_line, product_name, date, hour;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Weekly plant-level quality hotspots",
+        "content": "-- Weekly aggregates for defect points and breach hours\nSELECT week_start, plant_name,\n       avg_dry_solids_pct, avg_defect_points,\n       hours_under_quality, hours_over_quality\nFROM mccain_ebc_catalog.ag_mfg.gold_quality_weekly\nORDER BY week_start, plant_name;",
+        "instruction_type": "SQL_INSTRUCTION"
+      },
+      {
+        "title": "Supplier/load DM band shifts (pricing context)",
+        "content": "-- Load quality by DM band to see mix shifts; join to pricing if needed\nSELECT l.arrival_date, l.region, l.plant_name, l.variety, l.dm_band,\n       COUNT(*) AS loads, SUM(l.tons) AS total_tons,\n       AVG(l.dry_matter_pct) AS avg_dm\nFROM mccain_ebc_catalog.ag_mfg.silver_potato_load_quality l\nWHERE l.arrival_date BETWEEN '2025-08-10' AND '2025-09-20'\nGROUP BY l.arrival_date, l.region, l.plant_name, l.variety, l.dm_band\nORDER BY l.arrival_date, l.region, l.plant_name, l.variety, l.dm_band;",
         "instruction_type": "SQL_INSTRUCTION"
       }
     ]
@@ -97,12 +164,12 @@
           "tile_type": "KA",
           "mlflow_experiment_id": "905161963832675",
           "creation_timestamp_ms": 1762297198816,
-          "last_updated_timestamp_ms": 1762297212002,
+          "last_updated_timestamp_ms": 1762447581009,
           "serving_endpoint_name": "ka-338a2c1b-endpoint",
           "creator": "brian.lui@databricks.com",
           "creator_display_name": "Brian Lui",
           "description": "Assistant for McCain Foods demo that answers questions about equipment manuals, performance specs, and product quality specifications to support detection, cost impact, and scenario planning across plants and lines.",
-          "instructions": "You are a professional assistant that uses the indexed equipment manuals and PSS quality specifications to answer questions about line configurations, rated throughput, maintenance procedures, error codes, and SKU targets. When asked, cite relevant equipment specs (e.g., rated t/h, efficiency thresholds), error codes (e.g., DOW-PI-45xx), and PSS targets (dry matter %, defects %, fry color ranges, tolerance bands). Provide concise, actionable responses and clarify assumptions if the documents do not specify details. Do not invent specs; use only the indexed content. If a question mixes plant events with manuals/specs, answer from the manuals/specs and note where operational data would be needed.",
+          "instructions": "You are a professional, concise assistant for the McCain multi-agent manufacturing optimization demo. Use the indexed PDFs to answer questions about equipment manuals (throughput, maintenance, error codes), PSS quality specs (targets, tolerances, downgrading protocols), and how these relate to line quality (blend DM, defects, fry color), OEE, and scenario planning. When asked for recommendations, ground responses in the manuals and specs, reference rated capacities (e.g., CUT-2000, FRY-XL), and align to PSS thresholds (e.g., DM targets and tolerances). Explain trade-offs between over-quality (excess DM cost) and under-quality (rework/downgrade risk). Be clear about assumptions if data is not in the PDFs and suggest checks with OSI PI/OEE logs as needed.",
           "evaluation_run_exists": false,
           "acl_enabled": true
         },
@@ -112,12 +179,12 @@
               "name": "equipment_manuals_and_quality_specs",
               "description": "",
               "files": {
-                "path": "/Volumes/demo_generator/brian_lui_mccain_ebc/raw_data/pdf/equipment_manuals_and_quality_specs"
+                "path": "/Volumes/mccain_ebc_catalog/ag_mfg/raw_data/pdf/equipment_manuals_and_quality_specs"
               }
             },
-            "state": "KNOWLEDGE_SOURCE_STATE_UPDATED",
-            "last_successful_update_timestamp_ms": 1762297198816,
-            "latest_update_timestamp_ms": 1762297198816,
+            "state": "KNOWLEDGE_SOURCE_STATE_UPDATING",
+            "last_successful_update_timestamp_ms": 1762446836580,
+            "latest_update_timestamp_ms": 1762447207826,
             "knowledge_source_id": "3f99f3db-baf4-4fd2-9277-c19897a27255",
             "indexed_row_count": 147,
             "file_source_index_info": {
@@ -146,13 +213,49 @@
           "name": "equipment_manuals_and_quality_specs",
           "description": "",
           "files": {
-            "path": "/Volumes/demo_generator/brian_lui_mccain_ebc/raw_data/pdf/equipment_manuals_and_quality_specs"
+            "path": "/Volumes/mccain_ebc_catalog/ag_mfg/raw_data/pdf/equipment_manuals_and_quality_specs"
           },
           "type": "files"
         }
       }
     ],
     "examples": [
+      {
+        "question": "How does raw potato dry matter influence cost per ton and what is the expected average quality?",
+        "guidelines": [
+          "The answer should explain the approximate 21.5% average DM and describe the cost curve increasing above 21% dry matter, referencing the data in the document."
+        ]
+      },
+      {
+        "question": "How did the load quality distribution from supplier S7 change starting August 17, 2025?",
+        "guidelines": [
+          "The answer should describe the shift to higher dry matter loads from S7, referencing the date and distribution change."
+        ]
+      },
+      {
+        "question": "What are the key considerations for reallocation of high-DM loads and equipment upgrades based on the scenario plan?",
+        "guidelines": [
+          "The answer should identify feasibility factors, potential OEE improvements, and how to balance load quality with line capacity."
+        ]
+      },
+      {
+        "question": "How do you calculate the hourly blend dry matter and determine if it is under or over the specified target?",
+        "guidelines": [
+          "The answer should mention the weighted sum of load DMs, the target thresholds, and the classification criteria."
+        ]
+      },
+      {
+        "question": "What are the dry matter target and defect thresholds for the SC-9mm SKU?",
+        "guidelines": [
+          "The answer should mention the 21.8% dry matter target with a 0.3pp tolerance and defect rate thresholds as specified in the document."
+        ]
+      },
+      {
+        "question": "What is the rated throughput and maintenance procedure for the cutter at NA-ID-P01 L3?",
+        "guidelines": [
+          "The answer should include the rated throughput value of 8.5 t/h and mention routine maintenance steps or error codes listed in the manual."
+        ]
+      },
       {
         "question": "What is the rated throughput and maintenance procedure for the cutter at NA-ID-P01 L3?",
         "guidelines": [
@@ -175,6 +278,30 @@
         "question": "How did the load quality distribution from supplier S7 change starting August 17, 2025?",
         "guidelines": [
           "The answer should describe the shift to higher dry matter loads from S7, referencing the date and distribution change."
+        ]
+      },
+      {
+        "question": "What are the recommended troubleshooting steps for error codes DOW-PI-4521 and DOW-PI-4574?",
+        "guidelines": [
+          "The answer should outline the troubleshooting process and maintenance actions related to the specific error codes."
+        ]
+      },
+      {
+        "question": "What are typical defect rates and fry color ranges considered acceptable at end-of-line?",
+        "guidelines": [
+          "The answer should include the approximate defect rates of 1.4-2.2% and fry color median classes of 2-3, indicating acceptable ranges."
+        ]
+      },
+      {
+        "question": "What is the rated capacity and main maintenance considerations for the fryer at EU-NL-P03 P2?",
+        "guidelines": [
+          "The answer should specify the 6.0 t/h capacity and refer to maintenance or error code information relevant to the fryer."
+        ]
+      },
+      {
+        "question": "What are the typical OEE performance ranges and how are downtime events classified?",
+        "guidelines": [
+          "The answer should mention the performance thresholds, typical OEE values, and referencing specific downtime codes such as DOW-PI-4521."
         ]
       },
       {
@@ -219,24 +346,24 @@
     "config": {
       "multi_agent_supervisor": {
         "tile": {
-          "tile_id": "244c3742-55f0-4ee7-b500-bab88d4e2b25",
+          "tile_id": "dd326705-fa9e-48a4-b10f-0927eb66ac7c",
           "name": "DBGEN_McCain_Manufacturing_Optimization_Multi_Agent_Assistant",
           "tile_type": "MAS",
-          "mlflow_experiment_id": "905161963925284",
-          "creation_timestamp_ms": 1762378108560,
-          "last_updated_timestamp_ms": 1762378119365,
-          "serving_endpoint_name": "mas-244c3742-endpoint",
+          "mlflow_experiment_id": "905161963967921",
+          "creation_timestamp_ms": 1762448284197,
+          "last_updated_timestamp_ms": 1762448292722,
+          "serving_endpoint_name": "mas-dd326705-endpoint",
           "creator": "brian.lui@databricks.com",
           "creator_display_name": "Brian Lui",
-          "description": "AI supervisor for McCain Foods demo that coordinates data analysis (Genie) and documentation Q&A (Knowledge Assistant) to detect quality deviations, quantify cost exposure, align with OEE/downtime, and suggest scenario actions (load reallocation, equipment upgrades). Focus period 2025-07-10..2025-10-31 with key window 2025-08-18..2025-09-12.",
-          "instructions": "You are the supervisor for a manufacturing optimization assistant. Route quantitative, data-driven questions (metrics, trends, aggregations, joins, time-series) to Genie. Route policy/procedure/specification questions to the Knowledge Assistant. For complex prompts that ask both \u201cwhat happened\u201d and \u201cwhat should we do per policy,\u201d coordinate both agents: first use Genie to extract facts (dates, lines, metrics, events), then invoke KA to retrieve the relevant PSS thresholds, error code meanings, or maintenance procedures, and synthesize a concise answer. Always respect the demo\u2019s data boundaries (2025-07-10..2025-10-31) and use exact table and column names when forming data questions. Maintain a clear, action-oriented tone oriented to detection, root-cause alignment, quantified impact, and feasible scenario actions.",
+          "description": "Multi-agent assistant for McCain Foods demo that coordinates data exploration (Genie) and document Q&A (Knowledge Assistant) to detect under/over-quality production, quantify raw potato cost implications, align OEE/downtime patterns, and propose scenario plans (load reallocation and equipment upgrades) for the 2025-07-10..2025-10-31 window.",
+          "instructions": "Routing rules: Use Genie for any quantitative/data questions requiring SQL over the demo tables (silver/gold) including trends, aggregations, correlations, KPIs, and event alignment. Use KA for questions about equipment manuals, PSS quality thresholds, error code meanings, maintenance procedures, and operational protocols. For combined questions (e.g., data pattern plus policy/procedure guidance), invoke Genie first to retrieve metrics, then KA to provide the relevant policy/steps, and synthesize a concise answer. Be explicit about time windows (notably 2025-08-18..2025-09-12), entities (region, plant_name, plant_line, product_name), and KPIs (dry_solids_pct, hours_under/over_quality, over_quality_waste_usd, downgrade_rework_exposure_usd, oee_performance). Maintain an executive yet actionable tone focused on detection \u2192 impact \u2192 recommendation.",
           "evaluation_run_exists": false,
           "acl_enabled": true
         },
         "agents": [
           {
             "name": "Knowledge Assistant",
-            "description": "Knowledge Assistant indexes the PDF collection: equipment_manuals_and_quality_specs (10 documents, ~6 pages each). Document types include: equipment manuals (cutter, fryer, washer, sorter, freezer) with rated throughput specs (e.g., CUT-2000 8.5 t/h, FRY-XL 6.0 t/h), efficiency thresholds, maintenance steps, troubleshooting/error codes (e.g., DOW-PI-45xx), and Product Specific Specifications (PSS) quality documents listing SKU targets and tolerance bands (e.g., dry matter targets such as 21.8% \u00b10.3pp for SC-9mm), downgrading protocols, and QA procedures.\n\nKA can answer:\n- Definitions and thresholds from PSS: min/max dry matter %, defect caps, fry color acceptable ranges, tolerance bands, and downgrade/rework protocols.\n- Equipment capabilities: rated throughput by equipment type/model, maintenance steps, common failure modes, and error code meanings (e.g., what DOW-PI-4521 indicates; how to address DOW-PI-4574).\n- Procedure/how-to: steps to adjust blending to meet PSS targets; guidelines for handling under-/over-quality situations; maintenance/inspection procedures for cutters/fryers to stabilize throughput and quality.\n- Policy/controls: human-in-the-loop review requirements for scenario changes, approved potato varieties lists per SKU/line as documented in PSS.\n\nTypical question types:\n- \u201cWhat is the target and tolerance for dry matter on SC-9mm and CC-13mm?\u201d\n- \u201cWhat are the maintenance and troubleshooting steps for CUT-2000 when throughput drops?\u201d\n- \u201cWhat do error codes DOW-PI-4521 and DOW-PI-4574 refer to and what is the corrective action?\u201d\n- \u201cWhat is the downgrading protocol when defect points exceed the cap?\u201d\n",
+            "description": "Knowledge Assistant is the document Q&A agent with access to the following PDF collection(s):\n- equipment_manuals_and_quality_specs (10 documents, ~6 pages each). Contents: line equipment manuals (cutter, fryer, washer, freezer, sorter) with rated throughput specs (e.g., CUT-2000 8.5 t/h, FRY-XL 6.0 t/h), efficiency thresholds, preventive maintenance steps, troubleshooting, and error codes (e.g., DOW-PI-45xx). Product Specific Specifications (PSS) documents for the last 6 months with SKU targets and tolerance bands (e.g., SC-9mm DM target 21.8% \u00b10.3pp), USDA fry color caps, defect point limits, and downgrading protocols.\n\nWhat the KA can answer:\n- Equipment details: rated/effective throughput, maintenance procedures, calibration steps, and troubleshooting for cutters/fryers; interpretation of error codes like DOW-PI-4521 and DOW-PI-4574.\n- Quality specifications: definitions of min/max dry matter %, tolerance bands, USDA color class caps, defect limits, and downgrade/rework protocols for SKUs (SC-9mm, CC-13mm, WG-25mm) by plant/line.\n- Procedures and policies: changeover/cleaning checklists impacting OEE, quality testing sampling methods, and actions when quality drifts above/below PSS thresholds.\n\nExample question types for KA:\n- \u201cWhat is the DM target and tolerance for SC-9mm and how is over-quality defined?\u201d\n- \u201cWhat maintenance steps are recommended when cutter throughput drops below rated capacity on L3?\u201d\n- \u201cWhat does error code DOW-PI-4521 indicate and what is the standard response?\u201d\n- \u201cWhat are the allowed USDA color mix caps for CC-13mm and the protocol when exceeded?\u201d\n\nKA does not access data tables; it strictly answers from the PDF collection listed above.\n",
             "agent_type": "serving-endpoint",
             "serving_endpoint": {
               "name": "ka-338a2c1b-endpoint"
@@ -244,7 +371,7 @@
           },
           {
             "name": "Genie Data Explorer",
-            "description": "Genie is a SQL/data exploration agent connected to demo_generator.brian_lui_mccain_ebc silver/gold tables. It can run aggregations, joins, filters, window functions, and time-series analysis to answer manufacturing quality, OEE, and cost questions tied to the demo timeline.\n\nAvailable tables and key columns:\n- demo_generator.brian_lui_mccain_ebc.gold_line_hourly_quality\n  Columns: datetime STRING, date DATE, hour INT, week_start TIMESTAMP, plant_id BIGINT, plant_name STRING, plant_line STRING, product_name STRING, variety STRING, avg_length_mm BIGINT, usda_color_0..4 BIGINT, total_defect_points BIGINT, dry_solids_pct DOUBLE, fry_color_0_share..fry_color_4_share DOUBLE, min_dry_matter_pct DOUBLE, max_dry_matter_pct DOUBLE, under_quality_flag BOOLEAN, over_quality_flag BOOLEAN.\n  Uses: detect hourly under-/over-quality vs PSS thresholds (0.3pp tolerance baked into flags), compute persistence windows, deviation magnitudes (dry_solids_pct - min/max thresholds), by plant/line/product.\n\n- demo_generator.brian_lui_mccain_ebc.gold_line_hourly_metrics\n  Columns: date, plant_name, plant_line, product_name, blend_dm_pct DOUBLE, defect_points DOUBLE, hours_under_quality BIGINT, hours_over_quality BIGINT.\n  Uses: daily aggregations of hourly quality; trend lines of blend DM vs targets by line.\n\n- demo_generator.brian_lui_mccain_ebc.gold_quality_weekly\n  Columns: week_start, plant_name, avg_dry_solids_pct, avg_defect_points, fry_color_class_mode INT, hours_under_quality BIGINT, hours_over_quality BIGINT.\n  Uses: weekly plant-level defects and breach counts; bar charts by plant.\n\n- demo_generator.brian_lui_mccain_ebc.gold_oee_kpis\n  Columns: date, plant_name, plant_line, event_count BIGINT, total_downtime_min DOUBLE, run_duration_min DOUBLE, qty_packed_kg DOUBLE, num_totes_on DOUBLE, oee_performance DOUBLE.\n  Uses: OEE performance trends, availability/performance proxies, correlation to quality deviations.\n\n- demo_generator.brian_lui_mccain_ebc.silver_oee_events\n  Columns: event_id STRING, plant_name STRING, plant_line STRING, event_time TIMESTAMP, duration_min DOUBLE, downtime_min DOUBLE, component STRING, code STRING, notes STRING.\n  Uses: trace specific downtime codes (e.g., DOW-PI-4521, DOW-PI-4574) affecting NA-ID-P01 L3 during 2025-08-22..2025-09-05.\n\n- demo_generator.brian_lui_mccain_ebc.silver_oee_production_runs_and_downtime_events\n  Columns: datetime STRING, date DATE, week_start TIMESTAMP, plant_id BIGINT, plant_name STRING, plant_line STRING, downtime_cat_1 STRING, downtime_cat_2 STRING, product_name STRING, start_time STRING, end_time_ts TIMESTAMP, duration_min DOUBLE, downtime_min DOUBLE, qty_packed DOUBLE, num_totes_on DOUBLE.\n  Uses: derive downtime clusters by category; join to quality anomalies by date/week_start.\n\n- demo_generator.brian_lui_mccain_ebc.gold_change_alignment\n  Columns: date, hour, plant_name, plant_line, product_name, dry_solids_pct, under_quality_flag, over_quality_flag, downtime_cat_1, downtime_cat_2, duration_min DOUBLE, downtime_min DOUBLE.\n  Uses: correlate hourly quality anomalies with OEE downtime categories.\n\n- demo_generator.brian_lui_mccain_ebc.gold_cost_exposure\n  Columns: plant_name, region, product_name, date, tons_processed DOUBLE, avg_dry_matter_pct DOUBLE, over_quality_waste_usd DOUBLE, downgrade_rework_exposure_usd DOUBLE, raw_potato_spend_usd DOUBLE.\n  Uses: daily cost implications; compute last-30-day counters and regional contributions.\n\n- demo_generator.brian_lui_mccain_ebc.gold_counter_total_tons_last_30d\n  Column: total_tons_last_30d DOUBLE.\n\n- demo_generator.brian_lui_mccain_ebc.gold_counter_raw_potato_spend_last_30d\n  Column: raw_potato_spend_last_30d_usd DOUBLE.\n\n- demo_generator.brian_lui_mccain_ebc.gold_counter_oee_performance_avg_last_7d\n  Column: oee_performance_avg_last_7d DOUBLE.\n\n- demo_generator.brian_lui_mccain_ebc.gold_counter_downgrade_rework_last_30d\n  Column: downgrade_rework_exposure_last_30d_usd DOUBLE.\n\n- demo_generator.brian_lui_mccain_ebc.gold_cumulative_costs\n  Columns: date DATE, region STRING, cumulative_spend_usd DOUBLE, cumulative_over_quality_waste_usd DOUBLE.\n  Uses: regional cumulative curves to highlight EU vs NA contributions.\n\n- demo_generator.brian_lui_mccain_ebc.silver_line_quality_events_osipi\n  Columns: datetime, date, hour, week_start, plant_id, plant_name, product_id, product_name, variety, avg_length_mm, usda_color_0..4, total_defect_points, dry_solids_pct, fry_color_0_share..fry_color_4_share.\n  Uses: raw hourly line quality signals.\n\n- demo_generator.brian_lui_mccain_ebc.silver_potato_load_quality\n  Columns: plant_id, plant_name, variety, load_number, arrival_date, tons DOUBLE, average_length_grading_mm, usda_color_0_share..usda_color_4_share DOUBLE, total_defect_points BIGINT, dry_matter_pct DOUBLE.\n  Uses: supplier/load quality shifts (e.g., higher DM starting 2025-08-17); align to plant for blend explanations.\n\n- demo_generator.brian_lui_mccain_ebc.silver_product_specifications_pss\n  Columns: plant_id, plant_name, plant_line, product_id, product_name, average_length_grading_mm_min/target/max, pct_min_50mm_length, pct_min_75mm_length, max_usda_color_0..4, max_defect_points, min_dry_matter_pct, max_dry_matter_pct, approved_potato_varieties ARRAY<STRING>.\n  Uses: PSS thresholds and targets used to classify under/over quality.\n\n- demo_generator.brian_lui_mccain_ebc.silver_line_equipment\n  Columns: plant_id, plant_name, plant_line, equipment_id, equipment_type, equipment_description, equipment_rated_throughput_tph, commission_date, equipment_age_years, effective_rated_throughput_tph.\n  Uses: equipment constraints/age and throughput for scenario planning context.\n\n- demo_generator.brian_lui_mccain_ebc.gold_date_spine\n  Columns: date, dow, is_weekend, week_start; for consistent time bucketing.\n\nKey KPIs and calculations Genie can compute:\n- Deviation from PSS: dry_solids_pct - min_dry_matter_pct or dry_solids_pct - max_dry_matter_pct; breach counts and persistence.\n- Over-/Under-quality hours per line and date; daily blend_dm_pct trends vs targets.\n- OEE metrics: total_downtime_min, oee_performance, qty_packed_kg trends; alignment with downtime_cat_1/2 and codes.\n- Cost metrics: over_quality_waste_usd, downgrade_rework_exposure_usd, raw_potato_spend_usd; last-30-day counters; cumulative costs by region/date.\n- Event alignment for 2025-08-18..2025-09-12 at EU-NL-P03 L2 (over-quality) and NA-ID-P01 L3 (under-quality), including downtime codes and defect spikes.\n\nBusiness questions Genie can answer:\n- When did each line deviate from PSS and by how many pp? Which lines are persistent over-/under-quality?\n- What are daily/weekly trends of blend DM, defects, and OEE performance by plant/line/SKU?\n- What downtime categories/codes correlate with NA-ID-P01 L3 under-quality during 2025-08-22..2025-09-05?\n- What are the raw potato spend, over-quality waste, and downgrade/rework exposure by plant/region during 2025-08-18..2025-09-12?\n- Which region contributed most to cumulative over-quality waste, and how much came from EU-NL-P03?\n\nGenie supports: filtering by date range, region/plant/line/product, windowed aggregations, joins across gold_change_alignment, gold_oee_kpis, gold_cost_exposure, silver_oee_events, and time-series breakdowns.\n",
+            "description": "Genie is the SQL/data exploration agent for the McCain demo. It can query the following Delta tables in catalog demo_generator, schema brian_lui_mccain_ebc. It supports aggregations, joins, filters, time-series rollups, and KPI calculations.\n\nAvailable gold tables (exact names/columns):\n- mccain_ebc_catalog.ag_mfg.gold_line_hourly_quality: columns: datetime, date, hour, week_start, plant_id, plant_name, plant_line, product_name, variety, avg_length_mm, usda_color_0..4, total_defect_points, dry_solids_pct, fry_color_0_share..fry_color_4_share, min_dry_matter_pct, max_dry_matter_pct, under_quality_flag, over_quality_flag. Use to detect hourly under-/over-quality vs PSS thresholds (tolerance 0.3pp), compute breach counts, and trend blend DM vs target by plant/line/product.\n- mccain_ebc_catalog.ag_mfg.gold_line_hourly_metrics: date, plant_name, plant_line, product_name, blend_dm_pct, defect_points, hours_under_quality, hours_over_quality. Daily aggregates powering line charts and breach-duration KPIs.\n- mccain_ebc_catalog.ag_mfg.gold_quality_weekly: week_start, plant_name, avg_dry_solids_pct, avg_defect_points, fry_color_class_mode, hours_under_quality, hours_over_quality. Use for weekly plant-level comparisons and grouped bar charts.\n- mccain_ebc_catalog.ag_mfg.gold_oee_kpis: date, plant_name, plant_line, event_count, total_downtime_min, run_duration_min, qty_packed_kg, num_totes_on, oee_performance. Use to analyze OEE components and performance dips around events.\n- mccain_ebc_catalog.ag_mfg.gold_change_alignment: date, hour, plant_name, plant_line, product_name, dry_solids_pct, under_quality_flag, over_quality_flag, downtime_cat_1, downtime_cat_2, duration_min, downtime_min. Use to correlate quality deviations with OEE events by time/line.\n- mccain_ebc_catalog.ag_mfg.gold_cost_exposure: date, plant_name, region, product_name, tons_processed, avg_dry_matter_pct, raw_potato_spend_usd, over_quality_waste_usd, downgrade_rework_exposure_usd. Use to quantify financial impacts by day/plant/product and compute trailing-30-day counters.\n- mccain_ebc_catalog.ag_mfg.gold_cumulative_costs: date, region, cumulative_spend_usd, cumulative_over_quality_waste_usd, cumulative_gross_margin_usd. Use to plot cumulative spend vs waste by region and optionally margin context.\n- KPI counters: mccain_ebc_catalog.ag_mfg.gold_counter_total_tons_last_30d (total_tons_last_30d), gold_counter_raw_potato_spend_last_30d (raw_potato_spend_last_30d_usd), gold_counter_oee_performance_avg_last_7d (oee_performance_avg_last_7d), gold_counter_downgrade_rework_last_30d (downgrade_rework_exposure_last_30d_usd).\n- mccain_ebc_catalog.ag_mfg.gold_date_spine: date, dow, is_weekend, week_start for joins and filtering.\n- mccain_ebc_catalog.ag_mfg.gold_scenario_recommendations: recommendation_id, type, plant_name, plant_line, expected_savings_usd, expected_quality_delta_pp, confidence, rationale. Use to surface proposed actions for human review.\n\nAvailable silver tables (exact names/columns):\n- mccain_ebc_catalog.ag_mfg.silver_line_quality_events_osipi: datetime, date, hour, week_start, plant_id, plant_name, plant_line, product_name, variety, avg_length_mm, usda_color_0..4, total_defect_points, dry_solids_pct, fry_color_0_share..fry_color_4_share. Primary hourly quality signal source.\n- mccain_ebc_catalog.ag_mfg.silver_oee_production_runs_and_downtime_events: datetime, date, week_start, plant_id, plant_name, plant_line, downtime_cat_1, downtime_cat_2, product_name, start_time, end_time_ts, duration_min, downtime_min, qty_packed, num_totes_on. Use for run/downtime alignment and OEE derivations.\n- mccain_ebc_catalog.ag_mfg.silver_potato_load_quality: plant_id, plant_name, region, variety, dm_band, load_number, arrival_date, tons, average_length_grading_mm, usda_color_0_share..usda_color_4_share, total_defect_points, dry_matter_pct. Use to analyze supplier/variety quality mix shifts and correlate to line intake.\n- mccain_ebc_catalog.ag_mfg.silver_potato_variety_costs: effective_date, region, supplier_id, variety, dm_band, price_usd_per_ton, contract_id. Use to compute blended cost curves and identify dated contract tranche changes (e.g., S7 on 2025-08-17).\n- mccain_ebc_catalog.ag_mfg.silver_product_revenue_by_line: date, region, plant_id, plant_name, plant_line, product_id, product_name, units_packed_kg, net_sales_usd, channel, tier, price_per_kg. For revenue/margin context by line/SKU.\n- mccain_ebc_catalog.ag_mfg.silver_product_specifications_pss: plant_id, plant_name, plant_line, product_id, product_name, average_length_grading_mm_min/target/max, pct_min_50mm_length, pct_min_75mm_length, max_usda_color_0_pct..4_pct, max_defect_points, min_dry_matter_pct, max_dry_matter_pct, approved_potato_varieties. Reference for PSS targets and thresholds.\n- mccain_ebc_catalog.ag_mfg.silver_line_equipment: plant_id, plant_name, plant_line, equipment_id, equipment_type, equipment_description, equipment_rated_throughput_tph, commission_date, equipment_age_years, effective_rated_throughput_tph. For equipment inventory and throughput constraints.\n- mccain_ebc_catalog.ag_mfg.silver_current_product_demand: date, region, channel, product_id_raw, product_name_raw, orders_kg, forecast_kg, promo_flag, product_id, product_name. For demand alignment.\n- mccain_ebc_catalog.ag_mfg.silver_oee_events: event_id, plant_name, plant_line, event_time, duration_min, downtime_min, component, code, notes. For listing downtime codes (e.g., DOW-PI-4521, DOW-PI-4574).\n\nGenie-supported KPIs and calculations:\n- Under-/over-quality detection: compare dry_solids_pct vs min_dry_matter_pct/max_dry_matter_pct with 0.3pp tolerance; compute hours_under_quality/hours_over_quality and magnitude (pp) by line/date.\n- Financial exposure: aggregate raw_potato_spend_usd, over_quality_waste_usd, downgrade_rework_exposure_usd by plant/line/product/date; compute windowed sums (e.g., 2025-08-18..2025-09-12) and trailing counters.\n- OEE analysis: trend oee_performance and correlate with total_downtime_min; join gold_change_alignment to see downtime_cat_1/2 around deviations.\n- Supplier/variety mix: analyze silver_potato_load_quality and silver_potato_variety_costs by region/supplier/variety/dm_band, and align to plant/date to explain DM shifts.\n- Scenario insights: read gold_scenario_recommendations to list expected_savings_usd and rationale by type {load_reallocation, equipment_upgrade}.\n\nTypical questions Genie can answer:\n- When did EU-NL-P03 L2 SC-9mm exceed max_dry_matter_pct and by how many pp relative to tolerance? Show daily blend_dm_pct vs target during 2025-08-18..2025-09-12.\n- Quantify over_quality_waste_usd for EU-NL-P03 during the event window and compare to NA-ID-P01 L3 downgrade_rework_exposure_usd.\n- List NA-ID-P01 L3 downtime codes and durations (from silver_oee_events) around 2025-08-22 and show oee_performance trend.\n- Did supplier S7 price or dm_band mix change on 2025-08-17 in EU region, and how did avg dry_matter_pct of loads shift at EU-NL-P03?\n- What cumulative_spend_usd vs cumulative_over_quality_waste_usd is observed in EU vs NA by date?\n\nTime coverage: 2025-07-10..2025-10-31. Regions: NA, EU. Plants include NA-ID-P01, EU-NL-P03, etc. Lines L1..L6. SKUs include SC-9mm, CC-13mm, WG-25mm.\n",
             "agent_type": "genie-space",
             "genie_space": {
               "id": "01f0b9cf5c291e4cbc5e2de1c372cca1"
@@ -258,43 +385,43 @@
     },
     "examples": [
       {
-        "question": "Correlate hourly under_quality_flag at NA-ID-P01 L3 with downtime_cat_2 containing 'Cutter' using demo_generator.brian_lui_mccain_ebc.gold_change_alignment for 2025-08-18..2025-09-12.",
+        "question": "Show cumulative_spend_usd and cumulative_over_quality_waste_usd by region from 2025-07-10 to 2025-10-31, highlighting the EU contribution.",
         "guidelines": []
       },
       {
-        "question": "For NA-ID-P01 L3, list all downtime events and codes from 2025-08-22 to 2025-09-05 from demo_generator.brian_lui_mccain_ebc.silver_oee_events, and compute total downtime_min.",
+        "question": "During 2025-08-18 to 2025-09-12, which lines had the highest hours_over_quality and hours_under_quality, and what were their average blend_dm_pct vs PSS targets?",
         "guidelines": []
       },
       {
-        "question": "What does error code DOW-PI-4521 indicate in the manuals, and what maintenance steps are recommended to restore cutter throughput?",
+        "question": "Did the supplier/variety mix and dm_band for EU region shift starting 2025-08-17, and how did the average dry_matter_pct of loads arriving at EU-NL-P03 change?",
         "guidelines": []
       },
       {
-        "question": "What are the approved potato varieties for CC-13mm in the PSS docs, and what is the downgrading protocol when dry matter falls below min_dry_matter_pct?",
+        "question": "List all downtime events and codes for NA-ID-P01 L3 between 2025-08-22 and 2025-09-05 and show the associated oee_performance trend by day.",
         "guidelines": []
       },
       {
-        "question": "Which region contributed most to cumulative_over_quality_waste_usd by 2025-09-12, based on demo_generator.brian_lui_mccain_ebc.gold_cumulative_costs?",
+        "question": "Which scenario recommendations have the highest expected_savings_usd, and what are their rationales (load_reallocation vs equipment_upgrade)?",
         "guidelines": []
       },
       {
-        "question": "What are the PSS min_dry_matter_pct, max_dry_matter_pct, and tolerance for SC-9mm and CC-13mm according to the equipment_manuals_and_quality_specs collection?",
+        "question": "For NA-ID-P01 L3, how did total_downtime_min and defect_points move week-over-week during 2025-08-18..2025-09-12, and what does the PSS recommend when defect limits are exceeded?",
         "guidelines": []
       },
       {
-        "question": "Provide weekly hours_over_quality and hours_under_quality by plant_name from demo_generator.brian_lui_mccain_ebc.gold_quality_weekly for August 2025.",
+        "question": "How much over_quality_waste_usd accrued at EU-NL-P03 for SC-9mm compared to downgrade_rework_exposure_usd at NA-ID-P01 L3 over the same window?",
         "guidelines": []
       },
       {
-        "question": "Using demo_generator.brian_lui_mccain_ebc.gold_oee_kpis, how did oee_performance trend for NA-ID-P01 L3 during 2025-08-18..2025-09-12, and what was the average qty_packed_kg?",
+        "question": "If we reallocate high-DM loads intra-region, what equipment rated throughput constraints (from manuals) should we consider for cutters and fryers?",
         "guidelines": []
       },
       {
-        "question": "Show daily over_quality_waste_usd and raw_potato_spend_usd for EU-NL-P03 by product_name during 2025-08-18..2025-09-12 using demo_generator.brian_lui_mccain_ebc.gold_cost_exposure.",
+        "question": "What is the DM target and \u00b10.3pp tolerance for SC-9mm in the PSS, and how is over-quality vs under-quality classified?",
         "guidelines": []
       },
       {
-        "question": "Between 2025-08-18 and 2025-09-12, which plant lines had the highest number of over_quality_flag hours and what was the average dry_solids_pct during those hours?",
+        "question": "What does error code DOW-PI-4521 mean in the equipment manuals, and what maintenance steps are recommended to restore cutter throughput?",
         "guidelines": []
       }
     ]
